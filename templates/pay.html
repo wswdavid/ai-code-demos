@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>微信支付示例</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
+</head>
+
+<body>
+    <button onclick="requestPayment()">立即支付</button>
+
+    <script>
+        function requestPayment() {
+            const openid = '{{ openid }}';  // 从后端模板变量获取openid
+
+            fetch('/create_order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    openid: openid,
+                    amount: 1,
+                    description: '测试商品'
+                })
+            })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.code === 0) {
+                        const config = result.data;
+                        wx.config({
+                            debug: true,
+                            appId: config.appId,
+                            timestamp: config.timeStamp,
+                            nonceStr: config.nonceStr,
+                            signature: config.paySign,
+                            jsApiList: ['chooseWXPay']
+                        });
+
+                        wx.ready(function () {
+                            wx.chooseWXPay({
+                                timestamp: config.timeStamp,
+                                nonceStr: config.nonceStr,
+                                package: config.package,
+                                signType: config.signType,
+                                paySign: config.paySign,
+                                success: function (res) {
+                                    alert('支付成功！');
+                                },
+                                fail: function (res) {
+                                    alert('支付失败：' + JSON.stringify(res));
+                                }
+                            });
+                        });
+                    } else {
+                        alert('创建订单失败：' + result.msg);
+                    }
+                })
+                .catch(error => {
+                    alert('请求失败：' + error);
+                });
+        }
+    </script>
+</body>
+
+</html>

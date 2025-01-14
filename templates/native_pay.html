@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>微信扫码支付</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .qr-container {
+            text-align: center;
+            margin: 20px;
+        }
+
+        #qrCode {
+            max-width: 300px;
+        }
+
+        .status {
+            text-align: center;
+            margin: 10px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="qr-container">
+        <img id="qrCode" style="display: none;">
+        <div class="status" id="status">点击按钮生成支付二维码</div>
+    </div>
+    <div style="text-align: center;">
+        <button onclick="createOrder()">生成支付二维码</button>
+    </div>
+
+    <script>
+        let outTradeNo = '';
+        let checkInterval = null;
+
+        function createOrder() {
+            fetch('/create_native_order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    amount: 1,  // 1分钱
+                    description: '测试商品'
+                })
+            })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.code === 0) {
+                        // 显示二维码
+                        const qrCode = document.getElementById('qrCode');
+                        qrCode.src = 'data:image/png;base64,' + result.data.qr_code;
+                        qrCode.style.display = 'inline-block';
+
+                        // 保存订单号
+                        outTradeNo = result.data.out_trade_no;
+
+                        // 开始轮询订单状态
+                        document.getElementById('status').textContent = '请使用微信扫码支付';
+                        startCheckingOrderStatus();
+                    } else {
+                        alert('创建订单失败：' + result.msg);
+                    }
+                })
+                .catch(error => {
+                    alert('请求失败：' + error);
+                });
+        }
+
+        function startCheckingOrderStatus() {
+            // 清除之前的定时器
+            if (checkInterval) {
+                clearInterval(checkInterval);
+            }
+
+            // 每3秒查询一次订单状态
+            checkInterval = setInterval(() => {
+                fetch('/query_order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        out_trade_no: outTradeNo
+                    })
+                })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.code === 0) {
+                            const status = result.data.trade_state;
+                            if (status === 'SUCCESS') {
+                                document.getElementById('status').textContent = '支付成功！';
+                                clearInterval(checkInterval);
+                            } else if (status === 'NOTPAY') {
+                                document.getElementById('status').textContent = '等待支付...';
+                            } else {
+                                document.getElementById('status').textContent = '支付状态：' + status;
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('查询订单状态失败：', error);
+                    });
+            }, 3000);
+        }
+    </script>
+</body>
+
+</html>
