@@ -254,6 +254,3 @@ class WeChatPay:
             print(f"测试过程发生错误: {str(e)}")
 
 
-
-# wechat_pay = WeChatPay()
-# wechat_pay.test_native_pay()
