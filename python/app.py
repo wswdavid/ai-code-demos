@@ -157,5 +157,32 @@ def query_order():
     except Exception as e:
         return jsonify({'code': -1, 'msg': str(e)})
 
+@app.route('/refund')
+def refund_page():
+    """退款页面"""
+    return render_template('refund.html')
+
+@app.route('/do_refund', methods=['POST'])
+def do_refund():
+    """处理退款请求"""
+    try:
+        data = request.get_json()
+        out_trade_no = data.get('out_trade_no')
+        amount = data.get('amount')
+        reason = data.get('reason', '')
+        
+        if not out_trade_no or not amount:
+            return jsonify({'code': -1, 'msg': '缺少必要参数'})
+            
+        result = wechat_pay.refund_order(out_trade_no, amount, reason)
+        
+        if 'status' in result:
+            return jsonify({'code': 0, 'data': result})
+        else:
+            return jsonify({'code': -1, 'msg': '退款失败', 'error': result})
+            
+    except Exception as e:
+        return jsonify({'code': -1, 'msg': str(e)})
+
 if __name__ == '__main__':
     app.run(debug=True,host='0.0.0.0',port=5000) 

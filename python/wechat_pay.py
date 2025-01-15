@@ -253,4 +253,41 @@ class WeChatPay:
         except Exception as e:
             print(f"测试过程发生错误: {str(e)}")
 
+    def refund_order(self, out_trade_no, amount, reason=""):
+        """申请退款"""
+        url = "https://api.mch.weixin.qq.com/v3/refund/domestic/refunds"
+        
+        # 生成退款单号
+        out_refund_no = datetime.now().strftime('R%Y%m%d%H%M%S') + str(random.randint(1000, 9999))
+        
+        body = {
+            "out_trade_no": out_trade_no,
+            "out_refund_no": out_refund_no,
+            "reason": reason,
+            "amount": {
+                "refund": amount,
+                "total": amount,
+                "currency": "CNY"
+            }
+        }
+        
+        body_str = json.dumps(body)
+        sign_data = self.generate_sign('POST', '/v3/refund/domestic/refunds', body_str)
+        
+        # 构建认证头
+        token = f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
+        token += f'serial_no="{self.serial_no}",'
+        token += f'nonce_str="{sign_data["nonce"]}",'
+        token += f'timestamp="{sign_data["timestamp"]}",'
+        token += f'signature="{sign_data["signature"]}"'
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': token
+        }
+        
+        response = requests.post(url, data=body_str, headers=headers)
+        return response.json()
+
 
