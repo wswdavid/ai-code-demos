@@ -16,7 +16,7 @@ Session(app)
 
 @app.route('/')
 def index():
-    return render_template('pay.html')
+    return render_template('index.html')
 
 @app.route('/create_order', methods=['POST'])
 def create_order():

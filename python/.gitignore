@@ -1,0 +1,17 @@
+# flask
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.py
+*.pyx
+*.pyj
+*.pyjx
+*.pyjcx
+*.pyjcx
+
+# flask-session
+.flask_session/
+flask_session/*
