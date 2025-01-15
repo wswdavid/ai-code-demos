@@ -19,11 +19,31 @@
             margin: 10px;
             font-size: 18px;
         }
+
+        .success {
+            color: #07C160;
+            font-weight: bold;
+        }
+
+        .pending {
+            color: #E6A23C;
+        }
+
+        .error {
+            color: #F56C6C;
+        }
+
+        .amount {
+            font-size: 24px;
+            color: #333;
+            margin: 10px 0;
+        }
     </style>
 </head>
 
 <body>
     <div class="qr-container">
+        <div class="amount">支付金额：0.01元</div>
         <img id="qrCode" style="display: none;">
         <div class="status" id="status">点击按钮生成支付二维码</div>
     </div>
@@ -36,6 +56,13 @@
         let checkInterval = null;
 
         function createOrder() {
+            // 禁用按钮，防止重复点击
+            document.querySelector('button').disabled = true;
+            // 隐藏之前的二维码
+            document.getElementById('qrCode').style.display = 'none';
+            // 重置订单号
+            outTradeNo = '';
+
             fetch('/create_native_order', {
                 method: 'POST',
                 headers: {
@@ -49,23 +76,36 @@
                 .then(response => response.json())
                 .then(result => {
                     if (result.code === 0) {
+                        console.log('创建订单响应:', result); // 调试用
                         // 显示二维码
                         const qrCode = document.getElementById('qrCode');
                         qrCode.src = 'data:image/png;base64,' + result.data.qr_code;
                         qrCode.style.display = 'inline-block';
 
                         // 保存订单号
-                        outTradeNo = result.data.out_trade_no;
-
-                        // 开始轮询订单状态
-                        document.getElementById('status').textContent = '请使用微信扫码支付';
-                        startCheckingOrderStatus();
+                        if (result.data && result.data.out_trade_no) {
+                            outTradeNo = result.data.out_trade_no;
+                            console.log('成功获取订单号:', outTradeNo);
+                            // 开始轮询订单状态
+                            updateStatus('请使用微信扫码支付', 'pending');
+                            startCheckingOrderStatus();
+                        } else {
+                            console.error('响应中缺少订单号:', result);
+                            updateStatus('创建订单异常：缺少订单号', 'error');
+                            document.querySelector('button').disabled = false;
+                            return;
+                        }
                     } else {
-                        alert('创建订单失败：' + result.msg);
+                        updateStatus('创建订单失败：' + result.msg, 'error');
+                        // 启用按钮
+                        document.querySelector('button').disabled = false;
                     }
                 })
                 .catch(error => {
-                    alert('请求失败：' + error);
+                    console.error('创建订单请求失败:', error);
+                    updateStatus('请求失败：' + error, 'error');
+                    // 启用按钮
+                    document.querySelector('button').disabled = false;
                 });
         }
 
@@ -75,8 +115,17 @@
                 clearInterval(checkInterval);
             }
 
+            console.log('开始查询订单状态, 订单号:', outTradeNo); // 调试用
+
             // 每3秒查询一次订单状态
             checkInterval = setInterval(() => {
+                if (!outTradeNo) {
+                    console.error('订单号不存在');
+                    clearInterval(checkInterval);
+                    updateStatus('订单号无效', 'error');
+                    return;
+                }
+
                 fetch('/query_order', {
                     method: 'POST',
                     headers: {
@@ -88,22 +137,52 @@
                 })
                     .then(response => response.json())
                     .then(result => {
+                        console.log('查询订单响应:', result); // 调试用
                         if (result.code === 0) {
                             const status = result.data.trade_state;
+                            const tradeStateDesc = result.data.trade_state_desc || '';
                             if (status === 'SUCCESS') {
-                                document.getElementById('status').textContent = '支付成功！';
+                                updateStatus('支付成功！', 'success');
                                 clearInterval(checkInterval);
+                                // 隐藏二维码
+                                document.getElementById('qrCode').style.display = 'none';
+                                // 启用按钮
+                                document.querySelector('button').disabled = false;
+                                // 清除订单号，防止重复查询
+                                outTradeNo = '';
                             } else if (status === 'NOTPAY') {
-                                document.getElementById('status').textContent = '等待支付...';
+                                updateStatus('等待支付...', 'pending');
                             } else {
-                                document.getElementById('status').textContent = '支付状态：' + status;
+                                updateStatus(`支付状态：${status} (${tradeStateDesc})`, 'pending');
+                                // 如果是其他状态（如CLOSED、REVOKED等），也隐藏二维码
+                                if (status !== 'NOTPAY') {
+                                    document.getElementById('qrCode').style.display = 'none';
+                                }
+                            }
+                        } else {
+                            console.error('查询订单返回错误:', result);
+                            updateStatus('查询订单失败：' + result.msg, 'error');
+                            // 如果是订单不存在的错误，清除定时器和订单号
+                            if (result.msg && result.msg.includes('订单不存在')) {
+                                clearInterval(checkInterval);
+                                outTradeNo = '';
                             }
                         }
                     })
                     .catch(error => {
                         console.error('查询订单状态失败：', error);
+                        updateStatus('查询订单状态失败', 'error');
                     });
             }, 3000);
+        }
+
+        function updateStatus(message, type) {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            // 移除所有状态类
+            statusElement.classList.remove('success', 'pending', 'error');
+            // 添加当前状态类
+            statusElement.classList.add(type);
         }
     </script>
 </body>

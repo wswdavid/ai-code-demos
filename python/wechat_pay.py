@@ -11,6 +11,7 @@ from Crypto.Hash import SHA256
 from base64 import b64decode, b64encode
 import os
 from dotenv import load_dotenv
+from loguru import logger
 
 # 加载环境变量
 load_dotenv()
@@ -26,6 +27,7 @@ class WeChatPay:
         self.private_key_path = os.getenv("WECHAT_PRIVATE_KEY_PATH")
         self.serial_no = os.getenv("WECHAT_CERT_SERIAL_NO")
         
+        logger.info("初始化微信支付配置")
         # 验证必要的配置是否存在
         self._validate_config()
         
@@ -33,7 +35,9 @@ class WeChatPay:
         try:
             with open(self.private_key_path) as f:
                 self.private_key = RSA.import_key(f.read())
+            logger.info("成功加载商户私钥")
         except Exception as e:
+            logger.error(f"加载商户私钥失败: {str(e)}")
             raise ValueError(f"加载商户私钥失败: {str(e)}")
 
     def _validate_config(self):
@@ -62,13 +66,11 @@ class WeChatPay:
         nonce = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
         
         # 1. 获取HTTP请求的方法、URL、请求报文主体
-        url_parts = url_path.split('?')
-        canonical_url = url_parts[0]
         
         # 2. 按照顺序拼接成字符串
         # 注意：如果请求体为空，则使用空字符串""
         body_str = body if body else ''
-        message = f"{method}\n{canonical_url}\n{timestamp}\n{nonce}\n{body_str}\n"
+        message = f"{method}\n{url_path}\n{timestamp}\n{nonce}\n{body_str}\n"
         
         print("待签名字符串:", message)  # 调试用
         
@@ -87,10 +89,12 @@ class WeChatPay:
 
     def create_jsapi_order(self, openid, total_amount, description):
         """创建JSAPI支付订单"""
+        logger.info(f"开始创建JSAPI支付订单 - openid: {openid}, 金额: {total_amount}分")
         url = "https://api.mch.weixin.qq.com/v3/pay/transactions/jsapi"
         
         # 生成商户订单号
         out_trade_no = datetime.now().strftime('%Y%m%d%H%M%S') + str(random.randint(1000, 9999))
+        logger.info(f"生成商户订单号: {out_trade_no}")
         
         body = {
             "appid": self.app_id,
@@ -106,15 +110,18 @@ class WeChatPay:
                 "openid": openid
             }
         }
+        
         body_str = json.dumps(body)
+        logger.debug(f"JSAPI支付请求参数: {body_str}")
+        
         sign_data = self.generate_sign('POST', '/v3/pay/transactions/jsapi', body_str)
         
         # 构建认证头
-        token = f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
-        token += f'serial_no="{self.serial_no}",'
-        token += f'nonce_str="{sign_data["nonce"]}",'
-        token += f'timestamp="{sign_data["timestamp"]}",'
-        token += f'signature="{sign_data["signature"]}"'
+        token = (f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
+                f'serial_no="{self.serial_no}",'
+                f'nonce_str="{sign_data["nonce"]}",'
+                f'timestamp="{sign_data["timestamp"]}",'
+                f'signature="{sign_data["signature"]}"')
         
         headers = {
             'Content-Type': 'application/json',
@@ -122,11 +129,11 @@ class WeChatPay:
             'Authorization': token
         }
         
-        print("Request Headers:", headers)  # 调试用
-        print("Request Body:", body_str)    # 调试用
-        
+        logger.debug(f"发送JSAPI支付请求 - URL: {url}")
         response = requests.post(url, data=body_str, headers=headers)
-        print("Response:", response.text)    # 调试用
+        logger.info(f"JSAPI支付响应状态码: {response.status_code}")
+        logger.debug(f"JSAPI支付响应内容: {response.text}")
+        
         return response.json()
 
     def generate_js_config(self, prepay_id):
@@ -150,10 +157,12 @@ class WeChatPay:
 
     def create_native_order(self, total_amount, description):
         """创建Native支付订单"""
+        logger.info(f"开始创建Native支付订单 - 金额: {total_amount}分")
         url = "https://api.mch.weixin.qq.com/v3/pay/transactions/native"
         
         # 生成商户订单号
         out_trade_no = datetime.now().strftime('%Y%m%d%H%M%S') + str(random.randint(1000, 9999))
+        logger.info(f"生成商户订单号: {out_trade_no}")
         
         body = {
             "appid": self.app_id,
@@ -168,6 +177,8 @@ class WeChatPay:
         }
         
         body_str = json.dumps(body)
+        logger.debug(f"Native支付请求参数: {body_str}")
+        
         sign_data = self.generate_sign('POST', '/v3/pay/transactions/native', body_str)
         
         # 构建认证头
@@ -183,32 +194,43 @@ class WeChatPay:
             'Authorization': token
         }
         
-        print("Request Headers:", headers)  # 调试用
-        print("Request Body:", body_str)    # 调试用
-        
+        logger.debug(f"发送Native支付请求 - URL: {url}")
         response = requests.post(url, data=body_str, headers=headers)
-        print("Response:", response.text)    # 调试用
-        return response.json()
+        logger.info(f"Native支付响应状态码: {response.status_code}")
+        logger.debug(f"Native支付响应内容: {response.text}")
+        response_json = response.json()
+        response_json['out_trade_no'] = out_trade_no
+        return response_json
 
     def query_order_status(self, out_trade_no):
         """查询订单状态"""
-        url = f"https://api.mch.weixin.qq.com/v3/pay/transactions/out-trade-no/{out_trade_no}?mchid={self.mch_id}"
+        logger.info(f"开始查询订单状态 - 商户订单号: {out_trade_no}")
         
-        sign_data = self.generate_sign('GET', f'/v3/pay/transactions/out-trade-no/{out_trade_no}?mchid={self.mch_id}', '')
+        # 构建请求URL,注意URL编码
+        url_path = f"/v3/pay/transactions/out-trade-no/{out_trade_no}?mchid={self.mch_id}"
+        url = f"https://api.mch.weixin.qq.com{url_path}"
         
-        # 构建认证头
-        token = f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
-        token += f'serial_no="{self.serial_no}",'
-        token += f'nonce_str="{sign_data["nonce"]}",'
-        token += f'timestamp="{sign_data["timestamp"]}",'
-        token += f'signature="{sign_data["signature"]}"'
+        # 生成签名,注意这里不要对URL进行编码
+        sign_data = self.generate_sign('GET', url_path, '')
+        
+        # 构建认证头,注意各个字段之间不能有空格
+        token = (f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
+                f'serial_no="{self.serial_no}",'
+                f'nonce_str="{sign_data["nonce"]}",'
+                f'timestamp="{sign_data["timestamp"]}",'
+                f'signature="{sign_data["signature"]}"')
         
         headers = {
             'Accept': 'application/json',
-            'Authorization': token
+            'Authorization': token,
         }
         
+        logger.debug(f"发送订单查询请求 - URL: {url}")
+        logger.debug(f"请求头: {headers}")
+        
         response = requests.get(url, headers=headers)
+        logger.info(f"订单查询响应状态码: {response.status_code}")
+        logger.debug(f"订单查询响应内容: {response.text}")
         return response.json()
 
     def test_native_pay(self):
@@ -255,6 +277,7 @@ class WeChatPay:
 
     def refund_order(self, out_trade_no, amount, reason=""):
         """申请退款"""
+        logger.info(f"开始处理退款请求 - 商户订单号: {out_trade_no}, 金额: {amount}分")
         url = "https://api.mch.weixin.qq.com/v3/refund/domestic/refunds"
         
         # 生成退款单号
@@ -272,6 +295,8 @@ class WeChatPay:
         }
         
         body_str = json.dumps(body)
+        logger.debug(f"退款请求参数: {body_str}")
+        
         sign_data = self.generate_sign('POST', '/v3/refund/domestic/refunds', body_str)
         
         # 构建认证头
@@ -287,7 +312,11 @@ class WeChatPay:
             'Authorization': token
         }
         
+        logger.debug(f"发送退款请求 - URL: {url}")
         response = requests.post(url, data=body_str, headers=headers)
+        logger.info(f"退款响应状态码: {response.status_code}")
+        logger.debug(f"退款响应内容: {response.text}")
+        
         return response.json()
 
 

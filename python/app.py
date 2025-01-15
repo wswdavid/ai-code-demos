@@ -6,6 +6,24 @@ from flask_session import Session
 import qrcode
 import io
 import base64
+from loguru import logger
+import sys
+
+# 配置日志
+logger.remove()  # 清除默认的控制台输出
+logger.add(
+    sys.stdout,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    level="INFO"
+)
+logger.add(
+    "logs/wechat_pay_{time:YYYY-MM-DD}.log",
+    rotation="00:00",
+    retention="30 days",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
+    level="INFO",
+    encoding="utf-8"
+)
 
 app = Flask(__name__)
 wechat_pay = WeChatPay()
@@ -22,33 +40,51 @@ def index():
 def create_order():
     try:
         data = request.get_json()
+        logger.info(f"收到JSAPI支付请求: {data}")
         openid = data.get('openid')
         amount = data.get('amount')  # 金额（单位：分）
         description = data.get('description', '商品描述')
         
+        if not openid or not amount:
+            logger.warning("JSAPI支付请求缺少必要参数")
+            return jsonify({'code': -1, 'msg': '缺少必要参数'})
+        
         # 创建订单
         order_result = wechat_pay.create_jsapi_order(openid, amount, description)
+        logger.info(f"JSAPI支付创建订单结果: {order_result}")
         
         if 'prepay_id' in order_result:
             # 生成JSAPI调起支付所需的参数
             js_config = wechat_pay.generate_js_config(order_result['prepay_id'])
+            logger.info(f"JSAPI支付配置生成成功: {js_config}")
             return jsonify({'code': 0, 'data': js_config})
         else:
+            logger.error(f"JSAPI支付创建订单失败: {order_result}")
             return jsonify({'code': -1, 'msg': '创建订单失败', 'error': order_result})
             
     except Exception as e:
+        logger.exception(f"JSAPI支付处理异常: {str(e)}")
         return jsonify({'code': -1, 'msg': str(e)})
 
 @app.route('/notify', methods=['POST'])
 def notify():
     """支付结果通知处理"""
-    # 验证签名等安全处理
-    # 处理支付结果
-    return jsonify({'code': 'SUCCESS', 'message': 'OK'})
+    logger.info("收到支付结果通知")
+    try:
+        # 获取请求数据
+        data = request.get_json()
+        logger.info(f"支付通知数据: {data}")
+        # 验证签名等安全处理
+        # 处理支付结果
+        return jsonify({'code': 'SUCCESS', 'message': 'OK'})
+    except Exception as e:
+        logger.exception(f"处理支付通知异常: {str(e)}")
+        return jsonify({'code': 'FAIL', 'message': str(e)})
 
 @app.route('/wx_auth')
 def wx_auth():
     """发起微信授权"""
+    logger.info("开始微信授权流程")
     # 授权后回调地址
     redirect_uri = quote('https://你的域名/wx_callback')
     
@@ -58,35 +94,42 @@ def wx_auth():
         f"appid={wechat_pay.app_id}&"
         f"redirect_uri={redirect_uri}&"
         f"response_type=code&"
-        f"scope=snsapi_base&"  # snsapi_base仅获取openid，snsapi_userinfo获取用户信息
+        f"scope=snsapi_base&"
         f"state=STATE#wechat_redirect"
     )
+    logger.debug(f"构造的授权URL: {auth_url}")
     return redirect(auth_url)
 
 @app.route('/wx_callback')
 def wx_callback():
     """微信授权回调"""
+    logger.info("收到微信授权回调")
     code = request.args.get('code')
     if not code:
+        logger.warning("未收到授权code")
         return '授权失败'
     
+    logger.info(f"收到授权code: {code}")
     # 通过code获取access_token和openid
     url = (
         f"https://api.weixin.qq.com/sns/oauth2/access_token?"
         f"appid={wechat_pay.app_id}&"
-        f"secret={wechat_pay.app_secret}&"  # 需要在WeChatPay类中添加app_secret
+        f"secret={wechat_pay.app_secret}&"
         f"code={code}&"
         f"grant_type=authorization_code"
     )
     
     resp = requests.get(url)
     result = resp.json()
+    logger.info(f"获取access_token响应: {result}")
     
     if 'openid' in result:
         # 将openid存入session
         session['openid'] = result['openid']
-        return redirect('/pay')  # 重定向到支付页面
+        logger.info(f"授权成功，获取到openid: {result['openid']}")
+        return redirect('/pay')
     else:
+        logger.error(f"获取openid失败: {result}")
         return '获取openid失败'
 
 @app.route('/pay')
@@ -106,11 +149,17 @@ def native_pay():
 def create_native_order():
     try:
         data = request.get_json()
-        amount = data.get('amount')  # 金额（单位：分）
+        logger.info(f"收到Native支付请求: {data}")
+        amount = data.get('amount')
         description = data.get('description', '商品描述')
+        
+        if not amount:
+            logger.warning("Native支付请求缺少必要参数")
+            return jsonify({'code': -1, 'msg': '缺少必要参数'})
         
         # 创建订单
         order_result = wechat_pay.create_native_order(amount, description)
+        logger.info(f"Native支付创建订单结果: {order_result}")
         
         if 'code_url' in order_result:
             # 生成二维码
@@ -124,6 +173,7 @@ def create_native_order():
             img.save(buffered, format="PNG")
             qr_base64 = base64.b64encode(buffered.getvalue()).decode()
             
+            logger.info(f"Native支付二维码生成成功，订单号: {order_result.get('out_trade_no')}")
             return jsonify({
                 'code': 0, 
                 'data': {
@@ -132,9 +182,11 @@ def create_native_order():
                 }
             })
         else:
+            logger.error(f"Native支付创建订单失败: {order_result}")
             return jsonify({'code': -1, 'msg': '创建订单失败', 'error': order_result})
             
     except Exception as e:
+        logger.exception(f"Native支付处理异常: {str(e)}")
         return jsonify({'code': -1, 'msg': str(e)})
 
 @app.route('/query_order', methods=['POST'])
@@ -142,19 +194,25 @@ def query_order():
     """查询订单状态"""
     try:
         data = request.get_json()
+        logger.info(f"收到订单查询请求: {data}")
         out_trade_no = data.get('out_trade_no')
         
         if not out_trade_no:
+            logger.warning("订单查询缺少订单号")
             return jsonify({'code': -1, 'msg': '缺少订单号'})
             
         result = wechat_pay.query_order_status(out_trade_no)
+        logger.info(f"订单查询结果: {result}")
         
         if 'trade_state' in result:
+            logger.info(f"订单查询成功，订单号: {out_trade_no}, 状态: {result['trade_state']}")
             return jsonify({'code': 0, 'data': result})
         else:
+            logger.error(f"订单查询失败，订单号: {out_trade_no}, 错误信息: {result}")
             return jsonify({'code': -1, 'msg': '查询失败', 'error': result})
             
     except Exception as e:
+        logger.exception(f"订单查询异常: {str(e)}")
         return jsonify({'code': -1, 'msg': str(e)})
 
 @app.route('/refund')
@@ -167,21 +225,28 @@ def do_refund():
     """处理退款请求"""
     try:
         data = request.get_json()
+        logger.info(f"收到退款请求: {data}")
+        
         out_trade_no = data.get('out_trade_no')
         amount = data.get('amount')
         reason = data.get('reason', '')
         
         if not out_trade_no or not amount:
+            logger.warning("退款请求缺少必要参数")
             return jsonify({'code': -1, 'msg': '缺少必要参数'})
             
         result = wechat_pay.refund_order(out_trade_no, amount, reason)
+        logger.info(f"退款结果: {result}")
         
         if 'status' in result:
+            logger.info(f"退款申请成功，订单号: {out_trade_no}, 金额: {amount}分, 状态: {result['status']}")
             return jsonify({'code': 0, 'data': result})
         else:
+            logger.error(f"退款失败，订单号: {out_trade_no}, 错误信息: {result}")
             return jsonify({'code': -1, 'msg': '退款失败', 'error': result})
             
     except Exception as e:
+        logger.exception(f"退款处理异常: {str(e)}")
         return jsonify({'code': -1, 'msg': str(e)})
 
 if __name__ == '__main__':
