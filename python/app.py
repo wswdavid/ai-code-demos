@@ -66,20 +66,63 @@ def create_order():
         logger.exception(f"JSAPI支付处理异常: {str(e)}")
         return jsonify({'code': -1, 'msg': str(e)})
 
-@app.route('/notify', methods=['POST'])
+@app.route('/wxpay/notify', methods=['POST'])
 def notify():
     """支付结果通知处理"""
     logger.info("收到支付结果通知")
     try:
-        # 获取请求数据
-        data = request.get_json()
-        logger.info(f"支付通知数据: {data}")
-        # 验证签名等安全处理
+        # 获取原始请求数据
+        body = request.get_data()
+        logger.info(f"收到原始通知数据: {body}")
+        
+        # 验证签名
+        if not wechat_pay.verify_notify_sign(request.headers, body):
+            logger.error("回调通知验签失败")
+            return jsonify({
+                "code": "FAIL",
+                "message": "验签失败"
+            }), 401
+        
+        # 解密通知数据
+        decoded_data = wechat_pay.decrypt_notify_data(body)
+        if not decoded_data:
+            logger.error("解密回调数据失败")
+            return jsonify({
+                "code": "FAIL",
+                "message": "解密失败"
+            }), 401
+        
+        logger.info(f"解密后的通知数据: {decoded_data}")
+        
         # 处理支付结果
-        return jsonify({'code': 'SUCCESS', 'message': 'OK'})
+        event_type = decoded_data.get('event_type')
+        if event_type == 'TRANSACTION.SUCCESS':
+            # 支付成功
+            trade_state = decoded_data.get('trade_state')
+            out_trade_no = decoded_data.get('out_trade_no')
+            transaction_id = decoded_data.get('transaction_id')
+            trade_type = decoded_data.get('trade_type')
+            amount = decoded_data.get('amount', {}).get('total')
+            
+            logger.info(
+                f"支付成功 - 商户订单号: {out_trade_no}, 微信支付单号: {transaction_id}, "
+                
+            )
+            logger.info(f"支付方式: {trade_type}, 支付金额: {amount}分")
+            logger.info(f"解密后的通知数据: {decoded_data}")
+            # TODO: 在这里处理您的业务逻辑
+            # 例如：更新订单状态、发货等
+            
+        return jsonify({
+            "code": "SUCCESS",
+            "message": "成功"
+        })
     except Exception as e:
         logger.exception(f"处理支付通知异常: {str(e)}")
-        return jsonify({'code': 'FAIL', 'message': str(e)})
+        return jsonify({
+            "code": "FAIL",
+            "message": str(e)
+        }), 500
 
 @app.route('/wx_auth')
 def wx_auth():
@@ -250,4 +293,8 @@ def do_refund():
         return jsonify({'code': -1, 'msg': str(e)})
 
 if __name__ == '__main__':
-    app.run(debug=True,host='0.0.0.0',port=5000) 
+    app.run(
+        debug=True,
+        host='0.0.0.0',  # 只监听本地
+        port=5000
+    ) 

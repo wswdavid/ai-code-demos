@@ -12,6 +12,8 @@ from base64 import b64decode, b64encode
 import os
 from dotenv import load_dotenv
 from loguru import logger
+from Crypto.Cipher import AES
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 # 加载环境变量
 load_dotenv()
@@ -182,11 +184,11 @@ class WeChatPay:
         sign_data = self.generate_sign('POST', '/v3/pay/transactions/native', body_str)
         
         # 构建认证头
-        token = f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
-        token += f'serial_no="{self.serial_no}",'
-        token += f'nonce_str="{sign_data["nonce"]}",'
-        token += f'timestamp="{sign_data["timestamp"]}",'
-        token += f'signature="{sign_data["signature"]}"'
+        token = (f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
+                f'serial_no="{self.serial_no}",'
+                f'nonce_str="{sign_data["nonce"]}",'
+                f'timestamp="{sign_data["timestamp"]}",'
+                f'signature="{sign_data["signature"]}"')
         
         headers = {
             'Content-Type': 'application/json',
@@ -287,6 +289,7 @@ class WeChatPay:
             "out_trade_no": out_trade_no,
             "out_refund_no": out_refund_no,
             "reason": reason,
+            "notify_url": os.getenv("NOTIFY_URL"),
             "amount": {
                 "refund": amount,
                 "total": amount,
@@ -300,11 +303,11 @@ class WeChatPay:
         sign_data = self.generate_sign('POST', '/v3/refund/domestic/refunds', body_str)
         
         # 构建认证头
-        token = f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
-        token += f'serial_no="{self.serial_no}",'
-        token += f'nonce_str="{sign_data["nonce"]}",'
-        token += f'timestamp="{sign_data["timestamp"]}",'
-        token += f'signature="{sign_data["signature"]}"'
+        token = (f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
+                f'serial_no="{self.serial_no}",'
+                f'nonce_str="{sign_data["nonce"]}",'
+                f'timestamp="{sign_data["timestamp"]}",'
+                f'signature="{sign_data["signature"]}"')
         
         headers = {
             'Content-Type': 'application/json',
@@ -318,5 +321,63 @@ class WeChatPay:
         logger.debug(f"退款响应内容: {response.text}")
         
         return response.json()
+
+    def verify_notify_sign(self, headers, body):
+        """验证回调通知签名"""
+        timestamp = headers.get('Wechatpay-Timestamp')
+        nonce = headers.get('Wechatpay-Nonce')
+        signature = headers.get('Wechatpay-Signature')
+        serial_no = headers.get('Wechatpay-Serial')
+        body_str = body.decode('utf-8')
+        logger.info(f"收到回调通知头部信息: timestamp={timestamp}, nonce={nonce}, "
+                    f"signature={signature}, serial_no={serial_no}")     
+        
+        if not all([timestamp, nonce, signature, serial_no]):
+            logger.error("回调通知缺少必要的头部信息")
+            return False
+   
+        # 构造验签名串
+        message = f"{timestamp}\n{nonce}\n{body_str}\n"
+        logger.debug(f"验签名串: {message}")
+        
+        try:
+            # 从证书管理器获取微信支付平台证书
+            wechatpay_cert_path = os.getenv("WECHAT_PAY_PLAT_CERT_PATH")
+            with open(wechatpay_cert_path) as f:  # 需要下载微信支付平台证书
+                cert = RSA.import_key(f.read())
+            # 验证签名
+            message_hash = SHA256.new(message.encode('utf-8'))
+            signature_bytes = b64decode(signature)
+            pkcs1_15.new(cert).verify(message_hash, signature_bytes)
+            logger.info("签名验证成功")
+            return True
+        except Exception as e:
+            logger.error(f"验证签名失败: {str(e)}")
+            return False
+
+    def decrypt_notify_data(self, body):
+        """解密回调通知数据"""
+        try:
+            data = json.loads(body)
+            resource = data.get('resource', {})
+            nonce = resource.get('nonce')
+            ciphertext = resource.get('ciphertext')
+            associated_data = resource.get('associated_data')
+
+            # Base64解码密文
+            ciphertext_bytes = b64decode(ciphertext)
+            
+            # 使用AEAD_AES_256_GCM算法解密
+            key_bytes = self.api_v3_key.encode('utf-8')
+            nonce_bytes = nonce.encode('utf-8')
+            ad_bytes = associated_data.encode('utf-8') if associated_data else b''
+            
+            aesgcm = AESGCM(key_bytes)
+            decrypted_data = aesgcm.decrypt(nonce_bytes, ciphertext_bytes, ad_bytes)
+            
+            return json.loads(decrypted_data)
+        except Exception as e:
+            logger.error(f"解密回调数据失败: {str(e)}")
+            return None
 
 
