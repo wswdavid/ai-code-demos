@@ -21,3 +21,4 @@ cachelib
 loguru
 cryptography
 pyOpenSSL
+Pillow

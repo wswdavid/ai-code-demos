@@ -14,80 +14,11 @@ from dotenv import load_dotenv
 from loguru import logger
 from Crypto.Cipher import AES
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
+from wechat_pay_base import WeChatPayBase
 # 加载环境变量
 load_dotenv()
 
-class WeChatPay:
-    def __init__(self):
-        # 从环境变量获取配置信息
-        self.mch_id = os.getenv("WECHAT_MCH_ID")
-        self.app_id = os.getenv("WECHAT_APP_ID")
-        self.app_secret = os.getenv("WECHAT_APP_SECRET")
-        self.api_key = os.getenv("WECHAT_API_KEY")
-        self.api_v3_key = os.getenv("WECHAT_API_V3_KEY")
-        self.private_key_path = os.getenv("WECHAT_PRIVATE_KEY_PATH")
-        self.serial_no = os.getenv("WECHAT_CERT_SERIAL_NO")
-        
-        logger.info("初始化微信支付配置")
-        # 验证必要的配置是否存在
-        self._validate_config()
-        
-        # 加载商户私钥
-        try:
-            with open(self.private_key_path) as f:
-                self.private_key = RSA.import_key(f.read())
-            logger.info("成功加载商户私钥")
-        except Exception as e:
-            logger.error(f"加载商户私钥失败: {str(e)}")
-            raise ValueError(f"加载商户私钥失败: {str(e)}")
-
-    def _validate_config(self):
-        """验证配置是否完整"""
-        required_configs = [
-            ("WECHAT_MCH_ID", self.mch_id),
-            ("WECHAT_APP_ID", self.app_id),
-            ("WECHAT_API_KEY", self.api_key),
-            ("WECHAT_API_V3_KEY", self.api_v3_key),
-            ("WECHAT_PRIVATE_KEY_PATH", self.private_key_path),
-            ("WECHAT_CERT_SERIAL_NO", self.serial_no)
-        ]
-        
-        missing_configs = [name for name, value in required_configs if not value]
-        
-        if missing_configs:
-            raise ValueError(
-                f"缺少必要的配置项: {', '.join(missing_configs)}\n"
-                "请确保在.env文件中配置了所有必要的环境变量") # type: ignore
-
-    def generate_sign(self, method, url_path, body):
-        """生成请求签名
-        签名规则参考: https://pay.weixin.qq.com/wiki/doc/apiv3/wechatpay/wechatpay4_0.shtml
-        """
-        timestamp = str(int(time.time()))
-        nonce = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
-        
-        # 1. 获取HTTP请求的方法、URL、请求报文主体
-        
-        # 2. 按照顺序拼接成字符串
-        # 注意：如果请求体为空，则使用空字符串""
-        body_str = body if body else ''
-        message = f"{method}\n{url_path}\n{timestamp}\n{nonce}\n{body_str}\n"
-        
-        print("待签名字符串:", message)  # 调试用
-        
-        # 3. 使用商户私钥对待签名串进行SHA256 with RSA签名
-        message_hash = SHA256.new(message.encode('utf-8'))
-        signature = pkcs1_15.new(self.private_key).sign(message_hash)
-        sign = b64encode(signature).decode('utf-8')
-        
-        # 4. 设置HTTP头Authorization
-        # 注意：这里返回的是构建Authorization所需的所有参数
-        return {
-            'timestamp': timestamp,
-            'nonce': nonce,
-            'signature': sign
-        }
+class WeChatPay(WeChatPayBase):
 
     def create_jsapi_order(self, openid, total_amount, description):
         """创建JSAPI支付订单"""

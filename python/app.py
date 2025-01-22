@@ -8,6 +8,7 @@ import io
 import base64
 from loguru import logger
 import sys
+from wechat_transfer import WeChatTransfer
 
 # 配置日志
 logger.remove()  # 清除默认的控制台输出
@@ -27,6 +28,7 @@ logger.add(
 
 app = Flask(__name__)
 wechat_pay = WeChatPay()
+wechat_transfer = WeChatTransfer()
 
 app.secret_key = 'your_secret_key'  # session需要密钥
 app.config['SESSION_TYPE'] = 'filesystem'
@@ -290,6 +292,62 @@ def do_refund():
             
     except Exception as e:
         logger.exception(f"退款处理异常: {str(e)}")
+        return jsonify({'code': -1, 'msg': str(e)})
+
+@app.route('/transfer')
+def transfer_page():
+    """转账页面"""
+    return render_template('transfer.html')
+
+@app.route('/create_transfer', methods=['POST'])
+def create_transfer():
+    """创建转账订单"""
+    try:
+        data = request.get_json()
+        logger.info(f"收到转账请求: {data}")
+        
+        openid = data.get('openid')
+        amount = data.get('amount')
+        batch_name = data.get('batch_name', '商家转账')
+        remark = data.get('remark', '')
+        
+        if not openid or not amount:
+            logger.warning("转账请求缺少必要参数")
+            return jsonify({'code': -1, 'msg': '缺少必要参数'})
+        
+        result = wechat_transfer.create_transfer_order(
+            openid=openid,
+            amount=amount,
+            batch_name=batch_name,
+            detail_remark=remark
+        )
+        
+        logger.info(f"转账结果: {result}")
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.exception(f"转账处理异常: {str(e)}")
+        return jsonify({'code': -1, 'msg': str(e)})
+
+@app.route('/query_transfer', methods=['POST'])
+def query_transfer():
+    """查询转账状态"""
+    try:
+        data = request.get_json()
+        logger.info(f"收到转账查询请求: {data}")
+        
+        out_bill_no = data.get('out_bill_no')
+        
+        if not out_bill_no:
+            logger.warning("转账查询缺少商户单号")
+            return jsonify({'code': -1, 'msg': '缺少商户单号'})
+        
+        result = wechat_transfer.query_transfer_status(out_bill_no)
+        logger.info(f"转账查询结果: {result}")
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.exception(f"转账查询异常: {str(e)}")
         return jsonify({'code': -1, 'msg': str(e)})
 
 if __name__ == '__main__':

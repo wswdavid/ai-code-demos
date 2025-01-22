@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商家转账</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container mt-4">
+        <h2 class="text-center mb-4">商家转账</h2>
+
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <form id="transferForm">
+                            <div class="mb-3">
+                                <label for="openid" class="form-label">收款用户OpenID</label>
+                                <input type="text" class="form-control" id="openid" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">转账金额（元）</label>
+                                <input type="number" class="form-control" id="amount" min="0.01" step="0.01" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="batchName" class="form-label">转账批次名称</label>
+                                <input type="text" class="form-control" id="batchName" value="商家转账">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="remark" class="form-label">转账备注</label>
+                                <textarea class="form-control" id="remark" rows="2"></textarea>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary">发起转账</button>
+                                <a href="/" class="btn btn-secondary">返回首页</a>
+                            </div>
+                        </form>
+
+                        <!-- 查询转账状态表单 -->
+                        <div class="mt-4 pt-4 border-top">
+                            <h4>查询转账状态</h4>
+                            <form id="queryForm">
+                                <div class="mb-3">
+                                    <label for="outBillNo" class="form-label">商户单号</label>
+                                    <input type="text" class="form-control" id="outBillNo" required>
+                                </div>
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-info">查询状态</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 结果展示区域 -->
+                <div id="resultArea" class="mt-4" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            处理结果
+                        </div>
+                        <div class="card-body">
+                            <pre id="resultContent" class="mb-0"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('transferForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;  // 禁用提交按钮防止重复提交
+
+            try {
+                // 获取表单数据
+                const amount = Math.round(parseFloat(document.getElementById('amount').value) * 100);
+                const data = {
+                    openid: document.getElementById('openid').value,
+                    amount: amount,
+                    batch_name: document.getElementById('batchName').value,
+                    remark: document.getElementById('remark').value
+                };
+
+                const response = await fetch('/create_transfer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                // 处理不同的响应状态
+                if (result.code === 0) {
+                    // 转账申请成功
+                    showResult({
+                        ...result,
+                        msg: '转账申请成功，请等待处理结果'
+                    });
+                    // 自动填充商户单号到查询表单
+                    document.getElementById('outBillNo').value = result.out_bill_no;
+
+                } else if (result.code === -1) {
+                    // 可重试的错误
+                    submitBtn.disabled = false;  // 允许重试
+                    showResult({
+                        ...result,
+                        msg: `${result.msg}\n可以点击重试`
+                    });
+
+                } else {
+                    // 不可重试的错误
+                    showResult({
+                        ...result,
+                        msg: `${result.msg}\n请修改参数后重试`
+                    });
+                    submitBtn.disabled = false;
+                }
+
+            } catch (error) {
+                submitBtn.disabled = false;
+                showResult({
+                    code: -1,
+                    msg: '请求失败：' + error.message
+                });
+            }
+        });
+
+        // 添加自动查询功能
+        let queryTimer = null;
+
+        function showResult(result) {
+            const resultArea = document.getElementById('resultArea');
+            const resultContent = document.getElementById('resultContent');
+
+            // 格式化显示结果
+            const displayResult = {
+                状态码: result.code,
+                消息: result.msg,
+                商户单号: result.out_bill_no,
+                转账状态: result.state_msg || '未知状态',
+                详细信息: result.data
+            };
+
+            // 添加用户提示
+            let userTips = '';
+            if (result.need_confirm) {
+                userTips = '\n请打开微信，在支付通知中确认收款';
+            } else if (result.state === 'PROCESSING') {
+                userTips = '\n转账正在处理中，请稍后查询结果';
+            } else if (result.state === 'SUCCESS') {
+                userTips = '\n转账已成功';
+            } else if (result.state === 'FAIL') {
+                userTips = '\n转账失败，请检查原因后重试';
+            }
+
+            if (userTips) {
+                displayResult.操作提示 = userTips.trim();
+            }
+
+            resultContent.textContent = JSON.stringify(displayResult, null, 2);
+            resultArea.style.display = 'block';
+            resultArea.scrollIntoView({ behavior: 'smooth' });
+
+            // 根据状态决定是否需要自动查询
+            const needQuery = ['ACCEPTED', 'PROCESSING', 'WAIT_USER_CONFIRM', 'TRANSFERING'].includes(result.state);
+            if (needQuery && result.out_bill_no) {
+                startAutoQuery(result.out_bill_no);
+            }
+        }
+
+        function startAutoQuery(outBillNo) {
+            if (queryTimer) {
+                clearInterval(queryTimer);
+            }
+
+            // 每5秒查询一次，最多查询12次（1分钟）
+            let queryCount = 0;
+            queryTimer = setInterval(async () => {
+                if (queryCount >= 12) {
+                    clearInterval(queryTimer);
+                    showResult({
+                        code: -1,
+                        msg: '查询超时，请手动查询转账状态',
+                        state: 'TIMEOUT'
+                    });
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/query_transfer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            out_bill_no: outBillNo
+                        })
+                    });
+
+                    const result = await response.json();
+                    showResult(result);
+
+                    // 如果转账到达终态，停止查询
+                    if (result.state && ['SUCCESS', 'FAIL', 'CANCELLED'].includes(result.state)) {
+                        clearInterval(queryTimer);
+                    }
+
+                } catch (error) {
+                    console.error('查询失败：', error);
+                }
+
+                queryCount++;
+            }, 5000);
+        }
+    </script>
+</body>
+
+</html>
