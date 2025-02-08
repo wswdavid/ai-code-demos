@@ -223,3 +223,99 @@ class WeChatTransfer(WeChatPayBase):
                 "msg": f"转账异常: {str(e)}",
                 "out_bill_no": out_bill_no if "out_bill_no" in locals() else None,
             }
+
+    def query_transfer_status(self, out_bill_no):
+        """
+        查询转账状态
+        
+        Args:
+            out_bill_no (str): 商户单号
+            
+        Returns:
+            dict: 查询结果
+            {
+                'code': 0/-1/-2,  # 0成功，-1失败可重试，-2失败不可重试
+                'data': {...},     # API返回的原始数据
+                'msg': '...',      # 错误信息
+                'state': '...',    # 转账状态
+                'state_msg': '...', # 转账状态描述
+                'need_confirm': bool  # 是否需要用户确认
+            }
+        """
+        try:
+            # 构造请求URL
+            url = f"{self.transfer_url}/out-bill-no/{out_bill_no}"
+            
+            # 生成请求签名
+            sign_data = self.generate_sign(
+                "GET",
+                f"/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/{out_bill_no}",
+                ""
+            )
+            
+            # 构造请求头
+            headers = {
+                'Accept': 'application/json',
+                'Authorization': (
+                    f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
+                    f'nonce_str="{sign_data["nonce"]}",'
+                    f'timestamp="{sign_data["timestamp"]}",'
+                    f'serial_no="{self.serial_no}",'
+                    f'signature="{sign_data["signature"]}"'
+                )
+            }
+            
+            # 发送请求
+            response = requests.get(url, headers=headers)
+            
+            # 记录响应结果
+            logger.info(f"查询转账状态响应状态码: {response.status_code}")
+            result = response.json() if response.content else {}
+            logger.info(f"查询转账状态响应内容: {result}")
+            
+            if response.status_code == 200:
+                # 检查转账状态
+                state = result.get('state', '')
+                return self.handle_transfer_state(state, result, out_bill_no)
+            else:
+                error_code = result.get('code')
+                error_msg = result.get('message', '未知错误')
+                
+                # 根据错误码判断是否可以重试
+                retriable_codes = [
+                    'SYSTEM_ERROR',           # 系统错误
+                    'NETWORK_ERROR',          # 网络错误
+                    'FREQUENCY_LIMITED',      # 频率限制
+                    'RESOURCE_INSUFFICIENT',  # 资源不足
+                ]
+                
+                if error_code in retriable_codes:
+                    logger.warning(f"查询转账状态失败(可重试)，错误码: {error_code}, 信息: {error_msg}")
+                    return {
+                        "code": -1,  # 可重试
+                        "data": result,
+                        "out_bill_no": out_bill_no,
+                        "msg": f"查询失败(可重试): {error_msg}",
+                        "state": "QUERY_ERROR",
+                        "state_msg": "查询失败"
+                    }
+                else:
+                    logger.error(f"查询转账状态失败(不可重试)，错误码: {error_code}, 信息: {error_msg}")
+                    return {
+                        "code": -2,  # 不可重试
+                        "data": result,
+                        "out_bill_no": out_bill_no,
+                        "msg": f"查询失败(不可重试): {error_msg}",
+                        "state": "QUERY_ERROR",
+                        "state_msg": "查询失败"
+                    }
+                
+        except Exception as e:
+            logger.exception(f"查询转账状态异常: {str(e)}")
+            return {
+                "code": -1,  # 异常情况下建议可重试
+                "msg": f"查询异常: {str(e)}",
+                "out_bill_no": out_bill_no,
+                "state": "QUERY_ERROR",
+                "state_msg": "查询异常"
+            }
