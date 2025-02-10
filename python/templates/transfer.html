@@ -138,9 +138,6 @@
             }
         });
 
-        // 添加自动查询功能
-        let queryTimer = null;
-
         function showResult(result) {
             const resultArea = document.getElementById('resultArea');
             const resultContent = document.getElementById('resultContent');
@@ -159,7 +156,7 @@
             if (result.need_confirm) {
                 userTips = '\n请打开微信，在支付通知中确认收款';
             } else if (result.state === 'PROCESSING') {
-                userTips = '\n转账正在处理中，请稍后查询结果';
+                userTips = '\n转账正在处理中，可点击"查询状态"按钮查看最新结果';
             } else if (result.state === 'SUCCESS') {
                 userTips = '\n转账已成功';
             } else if (result.state === 'FAIL') {
@@ -173,58 +170,35 @@
             resultContent.textContent = JSON.stringify(displayResult, null, 2);
             resultArea.style.display = 'block';
             resultArea.scrollIntoView({ behavior: 'smooth' });
-
-            // 根据状态决定是否需要自动查询
-            const needQuery = ['ACCEPTED', 'PROCESSING', 'WAIT_USER_CONFIRM', 'TRANSFERING'].includes(result.state);
-            if (needQuery && result.out_bill_no) {
-                startAutoQuery(result.out_bill_no);
-            }
         }
 
-        function startAutoQuery(outBillNo) {
-            if (queryTimer) {
-                clearInterval(queryTimer);
+        // 删除原有的自动查询相关代码，添加查询表单的提交处理
+        document.getElementById('queryForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const outBillNo = document.getElementById('outBillNo').value;
+
+            try {
+                const response = await fetch('/query_transfer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        out_bill_no: outBillNo
+                    })
+                });
+
+                const result = await response.json();
+                showResult(result);
+
+            } catch (error) {
+                console.error('查询失败：', error);
+                showResult({
+                    code: -1,
+                    msg: '查询请求失败：' + error.message
+                });
             }
-
-            // 每5秒查询一次，最多查询12次（1分钟）
-            let queryCount = 0;
-            queryTimer = setInterval(async () => {
-                if (queryCount >= 12) {
-                    clearInterval(queryTimer);
-                    showResult({
-                        code: -1,
-                        msg: '查询超时，请手动查询转账状态',
-                        state: 'TIMEOUT'
-                    });
-                    return;
-                }
-
-                try {
-                    const response = await fetch('/query_transfer', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            out_bill_no: outBillNo
-                        })
-                    });
-
-                    const result = await response.json();
-                    showResult(result);
-
-                    // 如果转账到达终态，停止查询
-                    if (result.state && ['SUCCESS', 'FAIL', 'CANCELLED'].includes(result.state)) {
-                        clearInterval(queryTimer);
-                    }
-
-                } catch (error) {
-                    console.error('查询失败：', error);
-                }
-
-                queryCount++;
-            }, 5000);
-        }
+        });
     </script>
 </body>
 
