@@ -43,6 +43,63 @@ class WeChatTransfer(WeChatPayBase):
             "CANCELLED",
         }
 
+    def _make_request(self, method, api_path, data=None):
+        """
+        发送请求到微信支付API的通用方法
+
+        Args:
+            method (str): 请求方法，'GET' 或 'POST'
+            api_path (str): API路径，例如 '/v3/fund-app/mch-transfer/transfer-bills'
+            data (dict, optional): POST请求的数据
+
+        Returns:
+            tuple: (response_status_code, response_json)
+        """
+        try:
+            # 生成请求签名
+            sign_data = self.generate_sign(
+                method,
+                api_path,
+                json.dumps(data) if data else "",
+            )
+
+            # 构造请求头
+            headers = {
+                "Accept": "application/json",
+                "Authorization": (
+                    f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
+                    f'nonce_str="{sign_data["nonce"]}",'
+                    f'timestamp="{sign_data["timestamp"]}",'
+                    f'serial_no="{self.serial_no}",'
+                    f'signature="{sign_data["signature"]}"'
+                ),
+            }
+
+            # POST请求需要添加Content-Type
+            if method == "POST":
+                headers["Content-Type"] = "application/json"
+
+            # 构造完整URL
+            base_url = "https://api.mch.weixin.qq.com"
+            url = f"{base_url}{api_path}"
+
+            # 发送请求
+            if method == "GET":
+                response = requests.get(url, headers=headers)
+            else:
+                response = requests.post(url, headers=headers, json=data)
+
+            # 记录响应结果
+            logger.info(f"请求响应状态码: {response.status_code}")
+            result = response.json() if response.content else {}
+            logger.info(f"请求响应内容: {result}")
+
+            return response.status_code, result
+
+        except Exception as e:
+            logger.exception(f"请求处理异常: {str(e)}")
+            return None, {"message": str(e)}
+
     def handle_transfer_state(self, state, result, out_bill_no):
         """
         处理转账状态
@@ -127,6 +184,7 @@ class WeChatTransfer(WeChatPayBase):
                 "data": result,
             }
 
+
     def create_transfer_order(self, openid, amount, batch_name, detail_remark=""):
         """
         创建商家转账订单
@@ -152,17 +210,11 @@ class WeChatTransfer(WeChatPayBase):
             # 生成商户单号
             out_bill_no = f"BILL{int(time.time())}{uuid.uuid4().hex[:8]}"
 
-            # 在发送请求前，先查询该商户单号是否已存在
-            # query_result = self.query_transfer_order(out_bill_no)
-            # if query_result and query_result.get('data'):
-            #     logger.info(f"商户单号 {out_bill_no} 已存在，返回查询结果")
-            #     return query_result
-
             # 构造请求数据
             transfer_data = {
                 "appid": self.app_id,
                 "out_bill_no": out_bill_no,
-                "transfer_scene_id": "1000",  # 例如：1000-现金营销
+                "transfer_scene_id": "1000",
                 "openid": openid,
                 "transfer_amount": amount,
                 "transfer_remark": detail_remark or batch_name,
@@ -175,44 +227,16 @@ class WeChatTransfer(WeChatPayBase):
                 ],
             }
 
-            # 生成请求签名
-            sign_data = self.generate_sign(
+            # 使用通用请求方法
+            status_code, result = self._make_request(
                 "POST",
                 "/v3/fund-app/mch-transfer/transfer-bills",
-                json.dumps(transfer_data),
+                transfer_data
             )
 
-            # 构造请求头
-            headers = {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "Authorization": (
-                    f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
-                    f'nonce_str="{sign_data["nonce"]}",'
-                    f'timestamp="{sign_data["timestamp"]}",'
-                    f'serial_no="{self.serial_no}",'
-                    f'signature="{sign_data["signature"]}"'
-                ),
-            }
-
-            # 发送请求
-            response = requests.post(
-                self.transfer_url, headers=headers, json=transfer_data
-            )
-
-            # 记录响应结果
-            logger.info(f"转账请求响应状态码: {response.status_code}")
-            result = response.json() if response.content else {}
-            logger.info(f"转账请求响应内容: {result}")
-
-            if response.status_code == 200:
-                # 检查转账状态
+            if status_code == 200:
                 state = result.get("state", "")
-                return self.handle_transfer_state(
-                    state,
-                    result,
-                    out_bill_no,
-                )
+                return self.handle_transfer_state(state, result, out_bill_no)
             else:
                 error_code = result.get("code")
                 error_msg = result.get("message", "未知错误")
@@ -267,40 +291,14 @@ class WeChatTransfer(WeChatPayBase):
             dict: 查询结果，格式与 create_transfer_order 返回结果相同
         """
         try:
-            query_url = f"https://api.mch.weixin.qq.com/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/{out_bill_no}"
+            # 使用通用请求方法
+            api_path = f"/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/{out_bill_no}"
+            status_code, result = self._make_request("GET", api_path)
             
-            # 生成请求签名
-            sign_data = self.generate_sign(
-                "GET",
-                f"/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/{out_bill_no}",
-                ""
-            )
-            
-            # 构造请求头
-            headers = {
-                "Accept": "application/json",
-                "Authorization": (
-                    f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
-                    f'nonce_str="{sign_data["nonce"]}",'
-                    f'timestamp="{sign_data["timestamp"]}",'
-                    f'serial_no="{self.serial_no}",'
-                    f'signature="{sign_data["signature"]}"'
-                ),
-            }
-            
-            # 发送请求
-            response = requests.get(query_url, headers=headers)
-            
-            # 记录响应结果
-            logger.info(f"查询转账订单响应状态码: {response.status_code}")
-            result = response.json() if response.content else {}
-            logger.info(f"查询转账订单响应内容: {result}")
-            
-            if response.status_code == 200:
-                # 检查转账状态
+            if status_code == 200:
                 state = result.get("state", "")
                 return self.handle_transfer_state(state, result, out_bill_no)
-            elif response.status_code == 404:
+            elif status_code == 404:
                 logger.info(f"转账订单不存在，商户单号: {out_bill_no}")
                 return {
                     "code": -2,
