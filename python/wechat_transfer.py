@@ -43,62 +43,6 @@ class WeChatTransfer(WeChatPayBase):
             "CANCELLED",
         }
 
-    def _make_request(self, method, api_path, data=None):
-        """
-        发送请求到微信支付API的通用方法
-
-        Args:
-            method (str): 请求方法，'GET' 或 'POST'
-            api_path (str): API路径，例如 '/v3/fund-app/mch-transfer/transfer-bills'
-            data (dict, optional): POST请求的数据
-
-        Returns:
-            tuple: (response_status_code, response_json)
-        """
-        try:
-            # 生成请求签名
-            sign_data = self.generate_sign(
-                method,
-                api_path,
-                json.dumps(data) if data else "",
-            )
-
-            # 构造请求头
-            headers = {
-                "Accept": "application/json",
-                "Authorization": (
-                    f'WECHATPAY2-SHA256-RSA2048 mchid="{self.mch_id}",'
-                    f'nonce_str="{sign_data["nonce"]}",'
-                    f'timestamp="{sign_data["timestamp"]}",'
-                    f'serial_no="{self.serial_no}",'
-                    f'signature="{sign_data["signature"]}"'
-                ),
-            }
-
-            # POST请求需要添加Content-Type
-            if method == "POST":
-                headers["Content-Type"] = "application/json"
-
-            # 构造完整URL
-            base_url = "https://api.mch.weixin.qq.com"
-            url = f"{base_url}{api_path}"
-
-            # 发送请求
-            if method == "GET":
-                response = requests.get(url, headers=headers)
-            else:
-                response = requests.post(url, headers=headers, json=data)
-
-            # 记录响应结果
-            logger.info(f"请求响应状态码: {response.status_code}")
-            result = response.json() if response.content else {}
-            logger.info(f"请求响应内容: {result}")
-
-            return response.status_code, result
-
-        except Exception as e:
-            logger.exception(f"请求处理异常: {str(e)}")
-            return None, {"message": str(e)}
 
     def handle_transfer_state(self, state, result, out_bill_no):
         """

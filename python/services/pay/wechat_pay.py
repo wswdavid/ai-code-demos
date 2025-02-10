@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from loguru import logger
 from Crypto.Cipher import AES
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from wechat_pay_base import WeChatPayBase
+from services.wechat_pay_base import WeChatPayBase
 # 加载环境变量
 load_dotenv()
 

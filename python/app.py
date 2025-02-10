@@ -9,8 +9,8 @@ from flask import Flask, jsonify, redirect, render_template, request, session
 from loguru import logger
 
 from flask_session import Session
-from wechat_pay import WeChatPay
-from wechat_transfer import WeChatTransfer
+from services.pay.wechat_pay import WeChatPay
+from services.transfer.create_transfer import CreateTransfer
 
 # 配置日志
 logger.remove()  # 清除默认的控制台输出
@@ -30,7 +30,7 @@ logger.add(
 
 app = Flask(__name__)
 wechat_pay = WeChatPay()
-wechat_transfer = WeChatTransfer()
+
 
 app.secret_key = "your_secret_key"  # session需要密钥
 app.config["SESSION_TYPE"] = "filesystem"
@@ -324,7 +324,7 @@ def create_transfer():
         if not openid or not amount:
             logger.warning("转账请求缺少必要参数")
             return jsonify({"code": -1, "msg": "缺少必要参数"})
-
+        wechat_transfer = CreateTransfer()
         result = wechat_transfer.create_transfer_order(
             openid=openid, amount=amount, batch_name=batch_name, detail_remark=remark
         )
