@@ -167,7 +167,7 @@ class WeChatTransfer(WeChatPayBase):
                 "transfer_amount": amount,
                 "transfer_remark": detail_remark or batch_name,
                 "transfer_scene_report_infos": [
-                    {"info_type": "活动名称", "info_content": batch_name},
+                    {"info_type": "活动名称", "info_content": batch_name,},
                     {
                         "info_type": "奖励说明",
                         "info_content": detail_remark or "商家转账",
