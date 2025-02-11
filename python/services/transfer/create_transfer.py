@@ -348,13 +348,9 @@ class CreateTransfer(WeChatPayBase):
         # 处理HTTP状态
         action_type, error_msg = self.handle_http_status(status_code, result)
         if action_type != "continue":
-            return {
-                "msg": error_msg,
-                "out_bill_no": out_bill_no,
-                "data": result,
-                "action_type": action_type,
-            }
+            # 需自行实现逻辑
+            raise
 
         # 处理业务结果, 需自行实现逻辑
         transfer_result = self.handle_transfer_result(result)
-        return transfer_result
+        return
