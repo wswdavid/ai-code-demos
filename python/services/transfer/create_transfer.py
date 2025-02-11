@@ -273,17 +273,17 @@ class CreateTransfer(WeChatPayBase):
     ):
         """
         创建商家转账订单
-        
+
         重要说明：
             1. 同一笔转账订单的商户订单号（out_bill_no）重入时，请求参数需要保持一致
             2. 当HTTP状态码为5XX或者429时，可以尝试重试，但必须使用原商户订单号
             3. 敏感信息加密时需要使用【微信支付公钥】或【微信支付平台证书公钥】
             4. 建议在调用接口前检查商户账户余额是否充足
-            
+
         错误处理：
-            - 参数校验失败：抛出 ValueError
-            - HTTP请求异常：返回包含 action_type 的错误信息
-            - 业务处理结果：通过 handle_transfer_result 处理不同状态
+            - 参数校验：通过 validate_transfer_params 处理
+            - HTTP请求: 通过 handle_http_status 处理
+            - 业务结果：通过 handle_transfer_result 处理
 
         Args:
             openid (str): 用户的openid，商户某Appid下，获取用户openid参考 https://pay.weixin.qq.com/doc/v3/merchant/4012068676#OpenID
