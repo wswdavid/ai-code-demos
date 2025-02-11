@@ -16,6 +16,11 @@ STATE_MAP = {
     "CANCELLED": "转账已撤销",
 }
 
+# 已受理状态
+ACCEPTED_STATES = {
+    "ACCEPTED",
+}
+
 # 需要用户确认的状态
 NEED_CONFIRM_STATES = {
     "WAIT_USER_CONFIRM",
@@ -36,9 +41,8 @@ FINAL_STATES = {
 
 # 转账场景配置
 TRANSFER_SCENES = {
-    "CASH_MARKETING": {  # 现金营销
+    "现金营销": {  # 现金营销
         "scene_id": "1001",
-        "scene_name": "现金营销",
         "user_perceptions": ["活动奖励", "现金奖励"],
         "report_configs": [
             {"info_type": "活动名称", "required": True, "desc": "请在信息内容描述用户参与活动的名称，如新会员有礼"},
@@ -76,4 +80,4 @@ API_CONFIGS = {
             "should_retry": False  # 查询接口不需要重试
         }
     }
-} 
+}
