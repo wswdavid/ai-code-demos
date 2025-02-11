@@ -216,7 +216,7 @@ class CreateTransfer(WeChatPayBase):
                 # 需要实现以下逻辑：
                 # 1. 将订单信息保存到数据库
                 # 2. 使用异步任务定期查询转账状态（设置合理的查询间隔） / 接受回调通知扭转状态
-                # 3. 订单状态扭转至 WAIT_USER_CONFIRM/待收款用户确认 时，可进行后续的转账操作。
+                # 3. 订单状态扭转至 WAIT_USER_CONFIRM/待收款用户确认 时，可进行后续的转账操作
 
             case state if state in NEED_CONFIRM_STATES:
                 # 需要用户确认的状态
@@ -337,7 +337,7 @@ class CreateTransfer(WeChatPayBase):
         if not is_valid:
             raise ValueError(error_msg)
 
-        # 发送请求
+        # 发送请求, API配置信息参考 API_CONFIGS 中的内容
         status_code, result = self._make_request(
             self.api_config["method"],
             self.api_config["path"],

@@ -1,4 +1,4 @@
-"""微信转账相关常量配置"""
+"""商家转账相关常量配置"""
 
 # 转账金额限制(单位:分)
 MIN_TRANSFER_AMOUNT = 30  # 最小转账金额0.3元
@@ -97,8 +97,11 @@ RETRIABLE_BIZ_CODES = {
 # API配置
 API_CONFIGS = {
     "create_transfer": {
+        # 接口请求方法
         "method": "POST",
+        # 接口请求路径
         "path": "/v3/fund-app/mch-transfer/transfer-bills",
+        # 接口描述
         "desc": "创建商家转账API",
     },
     "query_transfer": {
