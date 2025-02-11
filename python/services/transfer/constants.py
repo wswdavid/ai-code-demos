@@ -42,7 +42,7 @@ FINAL_STATES = {
 # 转账场景配置
 TRANSFER_SCENES = {
     "现金营销": {  # 现金营销
-        "scene_id": "1001",
+        "scene_id": "1000",
         "user_perceptions": ["活动奖励", "现金奖励"],
         "report_configs": [
             {"info_type": "活动名称", "required": True, "desc": "请在信息内容描述用户参与活动的名称，如新会员有礼"},

@@ -266,7 +266,7 @@ class CreateTransfer(WeChatPayBase):
             scene (str): 转账场景
             transfer_remark (str): 转账备注，用户收款时可见，UTF8编码，最多32个字符
             transfer_scene_report_infos (list): 转账报备信息列表。每个场景要求的报备信息不同，
-                现金营销 - 示例格式：
+                转账场景-现金营销-示例：
                 [
                     {"info_type": "活动名称", "info_content": "新会员有礼"},
                     {"info_type": "奖励说明", "info_content": "注册会员抽奖一等奖"}
