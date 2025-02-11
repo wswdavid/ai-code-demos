@@ -161,7 +161,7 @@ class CreateTransfer(WeChatPayBase):
                 - 验证签名是否正确
                 - 确认证书是否有效
                 - 重要：4XX错误通常表示请求有误，修复问题后可使用原商户订单号重试
-            """
+        """
         # 获取业务错误码
         error_code = result.get("code", "")
         out_bill_no = result.get("out_bill_no", "")
@@ -207,6 +207,7 @@ class CreateTransfer(WeChatPayBase):
         state = data.get("state", "")
         out_bill_no = data.get("out_bill_no", "")
 
+        # 状态流转参考 https://pay.weixin.qq.com/doc/v3/merchant/4012715191#%E5%95%86%E5%AE%B6%E8%BD%AC%E8%B4%A6%E8%AE%A2%E5%8D%95%E7%8A%B6%E6%80%81
         match state:
             case state if state in ACCEPTED_STATES:
                 # 当状态为ACCEPTED时，记录日志并继续处理
@@ -215,6 +216,7 @@ class CreateTransfer(WeChatPayBase):
                 # 需要实现以下逻辑：
                 # 1. 将订单信息保存到数据库
                 # 2. 使用异步任务定期查询转账状态（设置合理的查询间隔） / 接受回调通知扭转状态
+                # 3. 订单状态扭转至 WAIT_USER_CONFIRM/待收款用户确认 时，可进行后续的转账操作。
 
             case state if state in NEED_CONFIRM_STATES:
                 # 需要用户确认的状态
@@ -222,7 +224,7 @@ class CreateTransfer(WeChatPayBase):
                 # 需要实现以下逻辑：
                 # 1. 更新订单状态为等待确认
                 # 2. 设置确认超时时间
-                # 3. 添加定时任务 或 接受回调通知 确认状态
+                # 3. 添加定时任务查询 或 接受回调通知 确认状态
                 # 4. 超时后发送提醒通知
 
             case state if state in RETRIABLE_STATES:
@@ -273,19 +275,19 @@ class CreateTransfer(WeChatPayBase):
         创建商家转账订单
 
         Args:
-            openid (str): 用户openid
+            openid (str): 用户的openid，商户某Appid下，获取用户openid参考 https://pay.weixin.qq.com/doc/v3/merchant/4012068676#OpenID
             amount (int): 转账金额，单位为分
-            scene (str): 转账场景
-            transfer_remark (str): 转账备注，用户收款时可见，UTF8编码，最多32个字符
-            transfer_scene_report_infos (list): 转账报备信息列表。每个场景要求的报备信息不同，
-                转账场景-现金营销-示例：
+            scene (str): 转账场景，在“商户平台-产品中心-商家转账”中申请的转账场景，申请权限通过后才可使用。转账场景需配置字段，参考 TRANSFER_SCENES 中的描述
+            transfer_scene_report_infos (list): 转账报备信息列表。每个场景要求的报备信息不同，参考 TRANSFER_SCENES 中的描述，按照要求传入报备信息
+                「现金营销」-转账场景示例（需填入活动名称、奖励说明）：
                 [
                     {"info_type": "活动名称", "info_content": "新会员有礼"},
                     {"info_type": "奖励说明", "info_content": "注册会员抽奖一等奖"}
                 ]
-            user_recv_perception (str, optional): 用户收款感知。
-            user_name (str, optional): 收款用户姓名。当转账金额>=2000元时必填，【微信支付公钥】或【微信支付平台证书公钥】加密
-            notify_url (str, optional): 回调通知地址
+            transfer_remark (str): 转账备注，用户收款时可见，UTF8编码，最多32个字符。参考 https://pay.weixin.qq.com/doc/v3/merchant/4012711988
+            user_recv_perception (str, optional): 用户在客户端收款时感知到的收款原因，参考 TRANSFER_SCENES 中的描述
+            user_name (str, optional): 收款用户姓名。当转账金额>=2000元时必填，需要使用【微信支付公钥】或【微信支付平台证书公钥】加密
+            notify_url (str, optional): 回调通知地址，通知URL必须为公网可访问的URL，必须为HTTPS，且不能携带参数。
 
         Returns:
             dict: 转账结果
