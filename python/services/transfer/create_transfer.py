@@ -8,6 +8,7 @@ from loguru import logger
 from services.wechat_pay_base import WeChatPayBase
 
 from .constants import (
+    ACCEPTED_STATES,
     API_CONFIGS,
     FINAL_STATES,
     MAX_TRANSFER_AMOUNT,
@@ -16,7 +17,6 @@ from .constants import (
     RETRIABLE_BIZ_CODES,
     RETRIABLE_STATES,
     TRANSFER_SCENES,
-    ACCEPTED_STATES,
 )
 
 
@@ -84,7 +84,7 @@ class CreateTransfer(WeChatPayBase):
         remark = transfer_data["transfer_remark"]
         if not isinstance(remark, str):
             return False, "转账备注必须为字符串"
-        if len(remark.encode('utf-8')) > 32:
+        if len(remark.encode("utf-8")) > 32:
             return False, "转账备注不能超过32个字符"
 
         # 5. 场景校验
@@ -294,11 +294,15 @@ class CreateTransfer(WeChatPayBase):
         }
 
         # 添加可选参数
+        additional_headers = {}
         if user_recv_perception:
             transfer_data["user_recv_perception"] = user_recv_perception
         if user_name:
             # 加密敏感信息
+            serial_no = self.serial_no
+            # TDOO 需要支持自动获取最新的平台证书来加密, 加密时支持传入证书序列号
             encrypted_user_name = self.encrypt_sensitive_data(user_name)
+            additional_headers["Wechatpay-Serial"] = serial_no
             transfer_data["user_name"] = encrypted_user_name
         if notify_url:
             transfer_data["notify_url"] = notify_url
@@ -309,7 +313,12 @@ class CreateTransfer(WeChatPayBase):
             raise ValueError(error_msg)
 
         # 发送请求
-        status_code, result = self._make_request(self.api_config["method"], self.api_config["path"], transfer_data)
+        status_code, result = self._make_request(
+            self.api_config["method"],
+            self.api_config["path"],
+            transfer_data,
+            additional_headers=additional_headers,
+        )
 
         # 处理HTTP状态
         action_type, error_msg = self.handle_http_status(status_code, result)
