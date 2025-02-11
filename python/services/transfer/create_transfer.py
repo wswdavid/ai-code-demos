@@ -96,11 +96,13 @@ class CreateTransfer(WeChatPayBase):
                 break
         if not scene:
             return False, f"无效的转账场景ID: {scene_id}"
+
+        # 6. 用户收款感知校验
         if "user_recv_perception" in transfer_data:
             if transfer_data["user_recv_perception"] not in scene["user_perceptions"]:
                 return False, f"当前场景({scene_key})下收款感知可选值为: {', '.join(scene['user_perceptions'])}"
 
-        # 6. 报备信息校验
+        # 7. 报备信息校验
         report_infos = transfer_data["transfer_scene_report_infos"]
         if not isinstance(report_infos, list):
             return False, "报备信息必须为列表格式"
@@ -216,7 +218,7 @@ class CreateTransfer(WeChatPayBase):
                 # 可重试的状态
                 logger.warning(f"转账遇到可重试状态: {state}，商户单号: {out_bill_no}")
                 # 需要实现以下逻辑：
-                # 1. 如一直处于此状态，建议检查账户余额是否足够，如果足够，则尝试重试
+                # 1. 如一直处于此状态，建议检查账户余额是否足够，如果足够，则尝试原单重试
 
             case state if state in FINAL_STATES:
                 if state == "SUCCESS":
