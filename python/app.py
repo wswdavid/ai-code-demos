@@ -107,6 +107,7 @@ def notify():
 
             logger.info(
                 f"支付成功 - 商户订单号: {out_trade_no}, 微信支付单号: {transaction_id}, "
+                f"交易状态: {trade_state}"
             )
             logger.info(f"支付方式: {trade_type}, 支付金额: {amount}分")
             logger.info(f"解密后的通知数据: {decoded_data}")
@@ -318,17 +319,19 @@ def create_transfer():
 
         openid = data.get("openid")
         amount = data.get("amount")
-        batch_name = data.get("batch_name", "商家转账")
         remark = data.get("remark", "")
-
         if not openid or not amount:
             logger.warning("转账请求缺少必要参数")
             return jsonify({"code": -1, "msg": "缺少必要参数"})
         wechat_transfer = CreateTransfer()
         result = wechat_transfer.create_transfer_order(
-            openid=openid, amount=amount, batch_name=batch_name, detail_remark=remark
+            openid=openid,
+            amount=amount,
+            remark=remark,
+            # user_recv_perception=user_recv_perception,
+            # user_name=user_name,
+            # notify_url=notify_url
         )
-
         logger.info(f"转账结果: {result}")
         return jsonify(result)
 
@@ -350,6 +353,7 @@ def query_transfer():
             logger.warning("转账查询缺少商户单号")
             return jsonify({"code": -1, "msg": "缺少商户单号"})
 
+        wechat_transfer = CreateTransfer()
         result = wechat_transfer.query_transfer_order(out_bill_no)
         logger.info(f"转账查询结果: {result}")
         return jsonify(result)
