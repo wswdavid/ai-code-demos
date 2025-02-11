@@ -126,7 +126,7 @@ class CreateTransfer(WeChatPayBase):
         """处理HTTP状态码
 
         状态码处理说明：
-        1. 2xx (成功):
+        1. 2XX (成功):
            - 继续处理业务逻辑
 
         2. 429 (请求频率超限):
@@ -135,10 +135,9 @@ class CreateTransfer(WeChatPayBase):
            - 延迟重试，建议等待2-5秒
            - 重要：重试时必须使用原商户订单号，不要更换订单号
 
-        3. 5xx (服务器错误):
+        3. 5XX (服务器错误):
            - 记录错误日志
-           - 使用指数退避算法重试
-           - 建议最多重试3次
+           - 可尝试使用指数退避算法重试
            - 持续失败时发送告警
            - 重要：重试时必须使用原商户订单号，避免重复转账风险
            - 建议：先查询订单状态，确认订单不存在才重试
@@ -148,7 +147,7 @@ class CreateTransfer(WeChatPayBase):
            - 检查请求参数是否正确
            - 验证签名是否正确
            - 确认证书是否有效
-           - 重要：4xx错误通常表示请求有误，修复问题后可使用原商户订单号重试
+           - 重要：4XX错误通常表示请求有误，修复问题后可使用原商户订单号重试
         """
         # 获取业务错误码
         error_code = result.get("code", "")
@@ -272,7 +271,7 @@ class CreateTransfer(WeChatPayBase):
                     {"info_type": "奖励说明", "info_content": "注册会员抽奖一等奖"}
                 ]
             user_recv_perception (str, optional): 用户收款感知。
-            user_name (str, optional): 收款用户姓名。当转账金额>=2000元时必填，使用公钥加密
+            user_name (str, optional): 收款用户姓名。当转账金额>=2000元时必填，【微信支付公钥】或【微信支付平台证书公钥】加密
             notify_url (str, optional): 回调通知地址
 
         Returns:

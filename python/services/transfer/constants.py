@@ -68,16 +68,10 @@ API_CONFIGS = {
         "method": "POST",
         "path": "/v3/fund-app/mch-transfer/transfer-bills",
         "desc": "创建商家转账API",
-        "retry": {
-            "should_retry": True,  # 是否支持重试
-        }
     },
     "query_transfer": {
         "method": "GET",
         "path": "/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/{out_bill_no}",
         "desc": "查询商家转账API",
-        "retry": {
-            "should_retry": False  # 查询接口不需要重试
-        }
     }
 }
