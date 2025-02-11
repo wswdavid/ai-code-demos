@@ -27,7 +27,7 @@ class CreateTransfer(WeChatPayBase):
         super().__init__()
         self.api_config = API_CONFIGS["create_transfer"]
 
-    def validate_transfer_params(self, transfer_data):
+    def validate_transfer_params(self, transfer_data: dict) -> tuple[bool, str]:
         """
         验证转账参数
 
@@ -306,7 +306,7 @@ class CreateTransfer(WeChatPayBase):
         # 参数校验
         is_valid, error_msg = self.validate_transfer_params(transfer_data)
         if not is_valid:
-            raise
+            raise ValueError(error_msg)
 
         # 发送请求
         status_code, result = self._make_request(self.api_config["method"], self.api_config["path"], transfer_data)
