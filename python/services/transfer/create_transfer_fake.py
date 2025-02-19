@@ -64,7 +64,8 @@ class CreateTransfer:
         self,
     ):
         """
-        创建商家转账订单
+        商家转账-发起转账
+        https://pay.weixin.qq.com/doc/v3/merchant/4012716434
 
         商家转账用户确认模式下，用户申请收款时，商户可通过此接口申请创建转账单
         - 接口返回的HTTP状态码及错误码，仅代表本次请求的结果，不能代表订单状态。
@@ -77,10 +78,11 @@ class CreateTransfer:
             2. 当HTTP状态码为5XX或者429时，可以尝试重试，但必须使用原商户订单号
             3. 敏感信息加密时需要使用【微信支付公钥】或【微信支付平台证书公钥】
             4. 建议在调用接口前检查商户账户余额是否充足
+
         """
 
         # ! 1. 构造请求参数
-        transfer_data = self._get_request_data()
+        transfer_data: dict = self._get_request_data()
 
         # ! 2. 验证请求参数
         is_valid = self.validate_request_params(transfer_data)
@@ -89,10 +91,10 @@ class CreateTransfer:
         http_response = self._make_request(transfer_data)
 
         # ! 4. 处理HTTP状态码
-        http_result = self.handle_http_status(http_response)
+        http_result = self.handle_http_result(http_response)
 
         # ! 5. 处理业务响应结果
-        result = self.handle_transfer_result(http_result)
+        transfer_result = self.handle_transfer_result(http_result)
 
         return
 
@@ -140,7 +142,7 @@ class CreateTransfer:
                 - 转账场景(transfer_scene_id) | 用户收款感知(user_recv_perception) | 转账报备信息(transfer_scene_report_infos) 存在映射关联关系，需根据转账场景按照规则填入
         """
 
-    def handle_http_status(self, status_code: int, result: dict) -> tuple[str, str | None]:
+    def handle_http_result(self):
         """
         处理HTTP请求结果
 
@@ -161,12 +163,11 @@ class CreateTransfer:
                 - 验证签名是否正确
                 - 确认证书是否有效
                 - 重要：4XX错误通常表示请求有误，修复问题后可使用原商户订单号和原参数重试
-                
+
         验证微信支付签名:
             - 使用公钥验证微信支付API接口返回的微信支付签名是否正确
             - 文件下载接口需要跳过验签流程
         """
-        return
 
     def handle_transfer_result(self, data: dict):
         """
@@ -177,10 +178,10 @@ class CreateTransfer:
                 # 注意：此时需要通过商户单号轮询查询转账状态
                 # 1. 将订单信息保存到数据库
                 # 2. 使用异步任务定期查询转账状态（设置合理的查询间隔） / 接受回调通知扭转状态
-                # 3. 订单状态扭转至 WAIT_USER_CONFIRM/待收款用户确认 时，可进行后续的转账操作                
+                # 3. 订单状态扭转至 WAIT_USER_CONFIRM/待收款用户确认 时，可进行后续的转账操作
             - PROCESSING | TRANSFERING:
                 # 1. 如一直处于此状态，建议检查账户余额是否足够，如果足够，则尝试原单重试
-            - WAIT_USER_CONFIRM: 
+            - WAIT_USER_CONFIRM:
                 # 1. 更新订单状态为等待确认
                 # 2. 设置确认超时时间
                 # 3. 添加定时任务查询 或 接受回调通知 确认状态
