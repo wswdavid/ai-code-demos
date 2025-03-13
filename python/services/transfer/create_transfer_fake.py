@@ -83,11 +83,9 @@ class CreateTransfer:
 
         # ! 1. 构造请求参数
         transfer_data: dict = self._get_request_data()
-        # 生成示例（需光标停留在此处）
-        transfer_data = 
 
         # ! 2. 验证请求参数
-        is_valid = self.validate_request_params(transfer_data)
+        self.validate_request_params(transfer_data)
 
         # ! 3. 生成签名，构造请求头，发送API请求
         http_response = self._make_request(transfer_data)
@@ -109,7 +107,7 @@ class CreateTransfer:
                 - appid string(32): 申请商户号的AppID或商户号绑定的AppID（企业号corpid即为此AppID）
                 - out_bill_no (str): 商户系统内部的商家单号，要求此参数只能由数字、大小写字母组成，在商户系统内部唯一
                 - openid (str): 用户的openid，商户某Appid下，获取用户openid参考 https://pay.weixin.qq.com/doc/v3/merchant/4012068676#OpenID
-                - amount (int): 转账金额，单位为分
+                - transfer_amount (int): 转账金额，单位为分
                 - transfer_scene_id (int): 转账场景，在“商户平台-产品中心-商家转账”中申请的转账场景，申请权限通过后才可使用。转账场景需配置字段，参考 TRANSFER_SCENES 中的描述
                 - transfer_scene_report_infos (Array): 转账报备信息列表。每个场景要求的报备信息不同，参考 TRANSFER_SCENES 中的描述，按照要求传入报备信息
                     「现金营销」-转账场景示例（需填入活动名称、奖励说明）：
@@ -127,9 +125,7 @@ class CreateTransfer:
         - 转账场景(transfer_scene_id) | 用户收款感知(user_recv_perception) | 转账报备信息(transfer_scene_report_infos) 存在映射关联关系，可参考 TRANSFER_SCENES 中的配置
         - 如果涉及字段加密，需要使用公钥加密，同时请求头部中需要加上使用加密公钥的证书ID
         """
-        # 生成示例（需光标停留在此处）
-        transfer_data = {"appid": "", "out_bill_no": "", "openid": "", "amount": 0, "transfer_scene_id": 0, "transfer_scene_report_infos": [], "transfer_remark": "",}
-        return 
+        # 商家转账-发起转账-请求参数拼接 生成示例，需选中该注释，通过 @demo 指令触发
 
     def validate_request_params(self, transfer_data: dict):
         """
