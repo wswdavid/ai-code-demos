@@ -11,16 +11,18 @@ from Crypto.PublicKey import RSA  #  pip install pycryptodome
 TRANSFER_SCENES = {
     "现金营销": {
         # 在“商户平台-产品中心-商家转账”中申请转账场景权限后，页面上获取到的转账场景ID
-        "scene_id": "1000",
-        # 用户在客户端收款时感知到的收款原因，不同转账场景配置的传入内容不同，
+        "transfer_scene_id": "1000",
+        # 用户在客户端收款时感知到的收款原因，不同转账场景配置的传入内容不同
         # 参考 https://pay.weixin.qq.com/doc/v3/merchant/4012711988#3.3-发起转账
-        "user_perceptions": [
+        # 「现金营销」场景下，只能从以下列表中选择其中一个传入
+        "user_recv_perception": [
             "活动奖励",
             "现金奖励",
         ],
         # 各转账场景下需报备的内容，若转账场景下有多个字段，均需要填写完整，报备内容用户不可见
         # 参考 https://pay.weixin.qq.com/doc/v3/merchant/4012711988#（3）按转账场景报备背景信息
-        "report_configs": [
+        # 「现金营销」场景下，需按以下格式填写全部的报备字段
+        "transfer_scene_report_infos": [
             {
                 "info_type": "活动名称",
                 "desc": "请在信息内容描述用户参与活动的名称，如新会员有礼",
@@ -32,9 +34,11 @@ TRANSFER_SCENES = {
         ],
     },
     "佣金报酬": {
-        "scene_id": "1002",
-        "user_perceptions": ["劳务报酬", "报销款", "企业补贴", "开工利是"],
-        "report_configs": [
+        "transfer_scene_id": "1002",
+        # 「佣金报酬」场景下，只能从以下列表中选择其中一个传入
+        "user_recv_perception": ["劳务报酬", "报销款", "企业补贴", "开工利是"],
+        # 「佣金报酬」场景下，需按以下格式填写全部的报备字段
+        "transfer_scene_report_infos": [
             {
                 "info_type": "岗位类型",
                 "desc": "请在信息内容描述收款用户的岗位类型，如外卖员、专家顾问",
@@ -58,9 +62,9 @@ class CreateTransfer:
         self.method = "POST"
         self.mch_id = "XXX"  # 商户号，是由微信支付系统生成并分配给每个商户的唯一标识符，商户号获取方式参考https://pay.weixin.qq.com/doc/v3/merchant/4013070756
         self.private_key_serial_no = "XXX"  # 商户API证书私钥序列号，如何获取请参考https://pay.weixin.qq.com/doc/v3/merchant/4013053053
-        self.private_key_filepath = "path/to/wechatpay/xx_cert"  # 商户API证书私钥文件路径
+        self.private_key_filepath = "path/to/wechatpay/xx_cert.pem"  # 商户API证书私钥文件路径，本地文件路径
         self.public_key_serial_no = "XXX"  # 微信支付公钥序列号，如何获取请参考https://pay.weixin.qq.com/doc/v3/merchant/4013038816
-        self.public_key_filepath = "path/to/wechatpay/certificate.pem"  # 微信支付公钥文件路径
+        self.public_key_filepath = "path/to/wechatpay/certificate.pem"  # 微信支付公钥文件路径，本地文件路径
         self._load_keys_from_file()
 
     def _load_keys_from_file(self):
@@ -192,11 +196,6 @@ class CreateTransfer:
         - transfer_scene_report_infos (Array): 转账报备信息列表。每个场景要求的报备信息不同，参考 TRANSFER_SCENES 中的描述，按照要求传入报备信息
             transfer_scene_report_infos - info_type: string(15)
             transfer_scene_report_infos - info_content: string(32)
-            「现金营销」-转账场景示例（需填入活动名称、奖励说明）：
-            [
-                {"info_type": "活动名称", "info_content": "新会员有礼"},
-                {"info_type": "奖励说明", "info_content": "注册会员抽奖一等奖"}
-            ]
         - transfer_remark string(32): 转账备注，用户收款时可见，UTF8编码，最多32个字符。参考 https://pay.weixin.qq.com/doc/v3/merchant/4012711988
 
         选填参数：
