@@ -37,7 +37,7 @@ TRANSFER_SCENES = {
         "transfer_scene_id": "1002",
         # 「佣金报酬」场景下，只能从以下列表中选择其中一个传入
         "user_recv_perception": ["劳务报酬", "报销款", "企业补贴", "开工利是"],
-        # 「佣金报酬」场景下，无论user_recv_perception填写的值为 劳务报酬|报销款|企业补贴|开工利是 ，需按以下格式填写全部的报备字段
+        # 「佣金报酬」场景下，无论user_recv_perception填写的值为 劳务报酬|报销款|企业补贴|开工利是 ，均需按以下格式填写全部的报备字段
         "transfer_scene_report_infos": [
             {
                 "info_type": "岗位类型",
