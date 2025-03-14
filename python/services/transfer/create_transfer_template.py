@@ -263,7 +263,7 @@ class CreateTransfer:
             "package_info" : "affffddafdfafddffda=="
         }
 
-        【state 单据状态】-处理建议:
+        【state 单据状态】处理建议:
         中间状态：
             - ACCEPTED:
                 # 转账已受理
