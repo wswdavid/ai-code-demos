@@ -18,7 +18,7 @@ TRANSFER_SCENES = {
             "活动奖励",
             "现金奖励",
         ],
-        # 各转账场景下需报备的内容，转账场景下有多个字段时需填写完整，报备内容用户不可见
+        # 各转账场景下需报备的内容，若转账场景下有多个字段，均需要填写完整，报备内容用户不可见
         # 参考 https://pay.weixin.qq.com/doc/v3/merchant/4012711988#（3）按转账场景报备背景信息
         "report_configs": [
             {
@@ -45,7 +45,7 @@ TRANSFER_SCENES = {
             },
         ],
     },
-    # ... 其他场景配置保持不变 ...
+    # ... 其他场景配置请按照实际情况，参考以上示例填写
 }
 
 
@@ -61,11 +61,10 @@ class CreateTransfer:
         self.private_key_filepath = "path/to/wechatpay/xx_cert"  # 商户API证书私钥文件路径
         self.public_key_serial_no = "XXX"  # 微信支付公钥序列号，如何获取请参考https://pay.weixin.qq.com/doc/v3/merchant/4013038816
         self.public_key_filepath = "path/to/wechatpay/certificate.pem"  # 微信支付公钥文件路径
-
         self._load_keys_from_file()
 
     def _load_keys_from_file(self):
-        """加载商户API私钥和微信支付公钥"""
+        """加载商户API证书私钥和微信支付公钥"""
         self.private_key = RSA.import_key(open(self.private_key_filepath, "r").read())
         self.public_key = RSA.import_key(open(self.public_key_filepath, "r").read())
 
@@ -85,7 +84,7 @@ class CreateTransfer:
         重要说明：
             1. 同一笔转账订单的商户订单号（out_bill_no）重入时，请求参数需要保持一致
             2. 当HTTP状态码为5XX或者429时，可以尝试重试，但必须使用原商户订单号
-            3. 敏感信息加密时需要使用【微信支付公钥】或【微信支付平台证书公钥】
+            3. 敏感信息加密时需要使用【微信支付公钥】
             4. 建议在调用接口前检查商户账户余额是否充足
         """
 
@@ -115,7 +114,7 @@ class CreateTransfer:
 
         需要严格按照参数说明要求以及业务实际情况，构造以下请求参数
         必填参数：
-        - appid string(32): 申请商户号的AppID或商户号绑定的AppID（企业号corpid即为此AppID）
+        - appid string(32): 商户号绑定的AppID，如何获取Appid参考 https://pay.weixin.qq.com/doc/v3/merchant/4013070756
         - out_bill_no string(32): 商户系统内部的商家单号，要求此参数只能由数字、大小写字母组成，在商户系统内部唯一
         - openid string(64): 用户的openid，商户某Appid下，获取用户openid参考 https://pay.weixin.qq.com/doc/v3/merchant/4012068676#OpenID
         - transfer_amount int: 转账金额，单位为分
@@ -127,45 +126,15 @@ class CreateTransfer:
                 {"info_type": "奖励说明", "info_content": "注册会员抽奖一等奖"}
             ]
         - transfer_remark string(32): 转账备注，用户收款时可见，UTF8编码，最多32个字符。参考 https://pay.weixin.qq.com/doc/v3/merchant/4012711988
-        - user_name: transfer_amount >= 200000 时必填，需要使用公钥加密
 
         选填参数：
         - user_recv_perception string: 用户在客户端收款时感知到的收款原因，参考 TRANSFER_SCENES 中的描述
-        - user_name string: 收款用户姓名。当转账金额>=2000元时必填，需要使用【微信支付公钥】或【微信支付平台证书公钥】加密。参考 https://pay.weixin.qq.com/doc/v3/merchant/4013053257
+        - user_name string: 收款用户姓名。当转账金额>=2000元时必填，需要使用【微信支付公钥】加密。参考 https://pay.weixin.qq.com/doc/v3/merchant/4013053257
         - notify_url string(256): 回调通知地址，通知URL必须为公网可访问的URL，必须为HTTPS，且不能携带参数。
 
         备注:
         - 转账场景(transfer_scene_id) | 用户收款感知(user_recv_perception) | 转账报备信息(transfer_scene_report_infos) 存在映射关联关系，可参考文档 https://pay.weixin.qq.com/doc/v3/merchant/4012711988
-        - 如果涉及字段加密，需要使用公钥加密，同时请求头部中需要加上使用加密公钥的证书ID
-
-        参考示例:
-        >curl -X POST \
-            https://api.mch.weixin.qq.com/v3/fund-app/mch-transfer/transfer-bills \
-            -H "Authorization: WECHATPAY2-SHA256-RSA2048 mchid=\"1900000001\",..." \
-            -H "Accept: application/json" \
-            -H "Wechatpay-Serial: 5157F09EFDC096DE15EBE81A47057A7232F1B8E1"  \
-            -H "Content-Type: application/json" \
-            -d '{
-                "appid" : "wxf636efh567hg4356",
-                "out_bill_no" : "plfk2020042013",
-                "transfer_scene_id" : "1000",
-                "openid" : "o-MYE42l80oelYMDE34nYD456Xoy",
-                "user_name" : "757b340b45ebef5467rter35gf464344v3542sdf4t6re4tb4f54ty45t4yyry45",
-                "transfer_amount" : 400000,
-                "transfer_remark" : "2020年4月报销",
-                "notify_url" : "https://www.weixin.qq.com/wxpay/pay.php",
-                "user_recv_perception" : "现金奖励",
-                "transfer_scene_report_infos" : [
-                {
-                    "info_type" : "活动名称",
-                    "info_content" : "新会员有礼"
-                },
-                {
-                    "info_type" : "奖励说明",
-                    "info_content" : "注册会员抽奖一等奖"
-                }
-                ]
-            }'
+        - 如果涉及字段加密，需要使用【微信支付公钥】加密，同时请求头部中`Wechatpay-Serial`填入使用【微信支付公钥】的证书序列号
         """
         # 商家转账-发起转账-构造请求参数 生成示例，需选中该注释，通过 @demo 指令触发
         raise NotImplementedError("This method needs to be implemented.")
@@ -215,31 +184,30 @@ class CreateTransfer:
         商家转账-发起转账-验证请求参数
 
         必填参数：
-        appid
-        out_bill_no
-        openid
-        transfer_amount
-        transfer_scene_id
-        transfer_remark
-        transfer_scene_report_infos
-        user_name: transfer_amount >= 200000 时必填，需要加密
+        - appid string(32): 商户号绑定的AppID，如何获取Appid参考 https://pay.weixin.qq.com/doc/v3/merchant/4013070756
+        - out_bill_no string(32): 商户系统内部的商家单号，要求此参数只能由数字、大小写字母组成，在商户系统内部唯一
+        - openid string(64): 用户的openid，商户某Appid下，获取用户openid参考 https://pay.weixin.qq.com/doc/v3/merchant/4012068676#OpenID
+        - transfer_amount int: 转账金额，单位为分
+        - transfer_scene_id string(32): 转账场景，在"商户平台-产品中心-商家转账"中申请的转账场景，申请权限通过后才可使用。转账场景需配置字段，参考 TRANSFER_SCENES 中的描述
+        - transfer_scene_report_infos (Array): 转账报备信息列表。每个场景要求的报备信息不同，参考 TRANSFER_SCENES 中的描述，按照要求传入报备信息
+            transfer_scene_report_infos - info_type: string(15)
+            transfer_scene_report_infos - info_content: string(32)
+            「现金营销」-转账场景示例（需填入活动名称、奖励说明）：
+            [
+                {"info_type": "活动名称", "info_content": "新会员有礼"},
+                {"info_type": "奖励说明", "info_content": "注册会员抽奖一等奖"}
+            ]
+        - transfer_remark string(32): 转账备注，用户收款时可见，UTF8编码，最多32个字符。参考 https://pay.weixin.qq.com/doc/v3/merchant/4012711988
 
-        参数类型校验（string 如果指定了长度需要校验）：
-        appid: string(32)
-        out_bill_no: string(32)
-        openid: string(64)
-        transfer_amount: int
-        transfer_scene_id: string(32)
-        transfer_remark: string(32)
-        notify_url: string(256)
-        transfer_scene_report_infos - info_type: string(15)
-        transfer_scene_report_infos - info_content: string(32)
+        选填参数：
+        - user_recv_perception string: 用户在客户端收款时感知到的收款原因，参考 TRANSFER_SCENES 中的描述
+        - user_name string: 收款用户姓名。当转账金额>=2000元时必填，需要使用【微信支付公钥】加密。参考 https://pay.weixin.qq.com/doc/v3/merchant/4013053257
+        - notify_url string(256): 回调通知地址，通知URL必须为公网可访问的URL，必须为HTTPS，且不能携带参数。
 
-        参数规则：
-        out_bill_no: 商户系统内部的商家单号，要求此参数只能由数字、大小写字母组成，在商户系统内部唯一
-        notify_url: 必须为HTTPS，且不能携带参数
-
-        请验证 1. 必填参数是否存在，2. 填入的参数类型/长度是否正确，验证不通过则抛出异常 3. 参数值是否符合业务规则
+        请验证
+        1. 必填参数是否存在
+        2. 填入的参数类型/长度是否正确，验证不通过则抛出异常。string 如果指定了长度需要校验。
+        3. 参数值是否符合业务规则，要符合参数中的描述
         """
         # 商家转账-发起转账-验证请求参数 生成示例，需选中该注释，通过 @demo 指令触发
         raise NotImplementedError("This method needs to be implemented.")
@@ -266,7 +234,7 @@ class CreateTransfer:
         if 200 <= status_code < 300:
             # 2XX 成功
             return
-        raise ValueError(f"HTTP 状态码异常: {status_code} response={http_response.json()}")
+        raise NotImplementedError(f"HTTP 状态码异常: {status_code} response={http_response.json()}")
 
     def parse_response(
         self,
@@ -274,6 +242,16 @@ class CreateTransfer:
     ):
         """
         商家转账-发起转账-解析回包结果
+
+        返回参数说明：
+        - out_bill_no string(32): 商户系统内部的商家单号
+        - transfer_bill_no string(32): 【微信转账单号】 微信转账单号，微信商家转账系统返回的唯一标识
+        - create_time string: 【单据创建时间】 单据受理成功时返回，按照使用rfc3339所定义的格式，格式为yyyy-MM-DDThh:mm:ss+TIMEZONE
+        - state string: 【单据状态】 商家转账订单状态，参考【state 单据状态】中的处理建议
+        - fail_reason string: 【失败原因】 订单已失败或者已退资金时，会返回订单失败原因，参考 https://pay.weixin.qq.com/doc/v3/merchant/4013774966 进行处理。
+        - package_info string: 【跳转领取页面的package信息】
+                                跳转微信支付收款页的package信息，APP调起用户确认收款或者JSAPI调起用户确认收款 时需要使用的参数。
+                                单据创建后，用户24小时内不领取将过期关闭，建议拉起用户确认收款页面前，先查单据状态：如单据状态为待收款用户确认，可用之前的package信息拉起；单据到终态时需更换单号重新发起转账。
 
         返回转账业务结果示例：
         {
@@ -285,23 +263,35 @@ class CreateTransfer:
             "package_info" : "affffddafdfafddffda=="
         }
 
-        转账状态-处理建议:
-        - ACCEPTED:
-            # 转账已受理
-        - PROCESSING:
-            # 转账锁定资金中。如果一直停留在该状态，建议检查账户余额是否足够，如余额不足，可充值后再原单重试。
-        - TRANSFERING:
-            # 转账中，可拉起微信收款确认页面再次重试确认收款
-        - WAIT_USER_CONFIRM:
-            # 待收款用户确认，可拉起微信收款确认页面进行收款确认
-        - SUCCESS:
-            # 转账成功
-        - FAIL:
-            # 转账失败
-        - CANCELING:
-            # 商户撤销请求受理成功，该笔转账正在撤销中
-        - CANCELLED:
-            # 转账撤销完成
+        【state 单据状态】-处理建议:
+        中间状态：
+            - ACCEPTED:
+                # 转账已受理
+                    # 1. 将订单信息保存到数据库
+                    # 2. 使用异步任务定期查询转账状态（设置合理的查询间隔） / 接受回调通知扭转状态
+                    # 3. 订单状态扭转至 WAIT_USER_CONFIRM/待收款用户确认 时，可进行后续的转账操作
+            - PROCESSING:
+                # 转账锁定资金中。如果一直停留在该状态，建议检查账户余额是否足够，如余额不足，可充值后再原单重试。
+            - TRANSFERING:
+                # 转账中，可拉起微信收款确认页面再次重试确认收款
+            - WAIT_USER_CONFIRM:
+                # 待收款用户确认，可拉起微信收款确认页面进行收款确认
+                    # 1. 更新订单状态为等待确认
+                    # 2. 设置确认超时时间
+                    # 3. 添加定时任务查询 或 接受回调通知 确认状态
+                    # 4. 超时后发送提醒通知
+            - CANCELING:
+                # 商户撤销请求受理成功，该笔转账正在撤销中
+                    # 1. 更新订单状态为撤销中
+                    # 2. 使用异步任务定期查询转账状态（设置合理的查询间隔） / 接受回调通知扭转状态
+        终态：
+            - SUCCESS:
+                # 转账成功
+            - FAIL:
+                # 转账失败
+                # 参考 fail_reason 的字段返回，根据不同的失败原因进行处理
+            - CANCELLED:
+                # 转账撤销完成
         """
         # 商家转账-发起转账-解析回包结果 生成示例，需选中该注释，通过 @demo 指令触发
         raise NotImplementedError("This method needs to be implemented.")
