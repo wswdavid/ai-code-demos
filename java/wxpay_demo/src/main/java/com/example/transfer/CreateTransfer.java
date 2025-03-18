@@ -34,10 +34,10 @@ public class CreateTransfer {
 
     // 商户相关配置
     private final String mchId = "1900006891"; // 商户号
-    private final String privateKeySerialNo = "6B06E34B2993CD64F242ED31C9D6AA20CD620B77"; // 商户API证书序列号
-    private final String privateKeyFilepath = "/Users/david/Desktop/测试资源/1900006891_20240613_cert/apiclient_key_1900006891.pem"; // 商户API证书私钥文件路径
-    private final String publicKeySerialNo = "1601C29F3EE31880A8754B15769218E5CA72330B"; // 微信支付平台证书序列号
-    private final String publicKeyFilepath = "/Users/david/Desktop/测试资源/1900006891_20240613_cert/wechatpay_1601C29F3EE31880A8754B15769218E5CA72330B.pem"; // 微信支付平台证书文件路径
+    private final String privateKeySerialNo = "XXXXXXX"; // 商户API证书序列号
+    private final String privateKeyFilepath = "XXXXX/apiclient_key.pem"; // 商户API证书私钥文件路径
+    private final String publicKeySerialNo = "XXXXXXXX"; // 微信支付平台证书序列号
+    private final String publicKeyFilepath = "XXXXX/apiclient_cert.pem"; // 微信支付平台证书文件路径
 
     private PrivateKey privateKey;
     private PublicKey publicKey;
